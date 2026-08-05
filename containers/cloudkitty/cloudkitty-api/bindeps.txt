@@ -1,0 +1,4 @@
+# Apache httpd for WSGI
+httpd
+mod_ssl
+python3-mod_wsgi
