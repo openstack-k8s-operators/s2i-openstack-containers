@@ -1,0 +1,3 @@
+#! /usr/bin/python3 -sP
+from cinder.wsgi import wsgi
+application = wsgi.initialize_application()
