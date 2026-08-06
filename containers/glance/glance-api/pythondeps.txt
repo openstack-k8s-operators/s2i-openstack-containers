@@ -1,0 +1,8 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+# Caching backend (dogpile extra for oslo.cache)
+oslo.cache[dogpile]
+# Cinder store backend (os-brick for volume attachment)
+glance_store[cinder]
+# Swift store backend (python-swiftclient)
+glance_store[swift]

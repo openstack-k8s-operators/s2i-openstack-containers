@@ -1,0 +1,16 @@
+# Apache WSGI server for glance-api
+httpd
+mod_ssl
+python3-mod_wsgi
+python3
+python3-pip
+# cryptography from RPM for certifications and CVE handling
+python3-cryptography
+# Image format conversion (from centos10-appstream repo)
+qemu-img
+# iSCSI support (os-brick / cinder store)
+iscsi-initiator-utils
+# Ceph RBD support
+ceph-common
+python3-rados
+python3-rbd

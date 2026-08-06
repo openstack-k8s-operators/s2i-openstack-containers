@@ -1,0 +1,4 @@
+#! /usr/bin/python3 -sP
+# PBR Generated from 'wsgi_scripts'
+
+from glance.wsgi.api import application
