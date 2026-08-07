@@ -11,16 +11,10 @@ jobs:
       TAG: "master-latest,master-${{ github.sha }}"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.x"
+      - uses: ./.github/actions/setup-tox
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y buildah podman
-
-      - name: Install tox
-        run: pip install tox
 
       - name: Build images
         run: tox -e build
