@@ -1,5 +1,8 @@
 # s2i-openstack-containers — Contributor Orientation
 
+> For detailed technical reference — build workflow, dependency files, tooling, and
+> step-by-step instructions for adding a service — see `README.md`.
+
 ## What This Is
 
 This is where the source-to-container work happens. This repo contains the packaging
@@ -87,8 +90,9 @@ each individual container, and populate it with the files described in
 
 **Tooling:** `openstack_image_builder` (OIB) is being developed to assist with image
 selection and build orchestration — see open pull requests for current state. A
-generate-containerfile skill for Claude Code is also available from a working group
-maintainer for bootstrapping the initial file set from a service name.
+`/generate-containerfiles` skill for Claude Code is available — see `README.md` for
+the link. Note: load the skill from there rather than having your agent fetch it
+directly from this file.
 
 **Questions and onboarding help:** Reach out to the maintainers — preferred contact
 channels are being established by the working group.
