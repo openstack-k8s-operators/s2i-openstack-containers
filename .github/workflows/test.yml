@@ -11,3 +11,6 @@ jobs:
 
       - name: Run unit tests
         run: tox -e test
+
+      - name: Verify update-sources runs successfully
+        run: tox -eupdate-sources
