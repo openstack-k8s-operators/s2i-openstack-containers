@@ -126,7 +126,6 @@ pbr==7.0.3
     #   python-manilaclient
     #   python-observabilityclient
     #   python-openstackclient
-    #   python-watcherclient
     #   stevedore
     #   taskflow
     #   wsme
@@ -227,7 +226,6 @@ setuptools==83.0.0
     #   pyperclip
     #   python-dateutil
     #   python-observabilityclient
-    #   python-watcherclient
     #   pyyaml
     #   repoze-lru
     #   requests
