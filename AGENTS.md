@@ -11,10 +11,10 @@ approach — each service is built directly from its upstream Python source rath
 from RPMs.
 
 Container definitions are organized by component group: each upstream service group gets
-its own directory under `containers/`, with individual container definitions as
+its own directory under `containers/`, with individual image definitions as
 subdirectories within it. For example, `containers/cyborg/` is the group;
 `containers/cyborg/cyborg/` and `containers/cyborg/cyborg-agent/` are the individual
-containers.
+images.
 
 For Python-based services, pip-freeze style lock files are the current recommendation
 for capturing Python dependencies. Some tooling is available to help with onboarding —
@@ -51,19 +51,20 @@ Containers are organized in a two-level hierarchy under `containers/`:
 ```
 containers/
   base/                  # shared base image — inherited by all service images
-  <component-group>/     # one directory per upstream service group
-    <container>/         # one subdirectory per individual container in the group
+  <component-group>/     # one directory per upstream service group (called "project" in README)
+    <image>/             # one subdirectory per individual image in the group
 ```
 
 **`containers/base/`** is the foundation. It defines the shared build scripts, the
 authoritative RPM repo source list (`rpms.repo`), and the base Python environment.
-All service containers inherit from it.
+All service images inherit from it.
 
-Each **component group directory** contains the individual container definitions for
-services that share the same upstream source. A group may also have a `common/`
-directory for shared configuration across its containers.
+Each **component group directory** (equivalent to a "project" in README — the
+"component" framing comes from earlier tooling like DLRN) contains the image
+definitions for services that share the same upstream source. A group may also
+have a `common/` directory for shared configuration across its images.
 
-Each **container directory** should have:
+Each **image directory** should have:
 - A source reference (where to pull upstream source from)
 - RPM dependency specification
 - Python dependency lock files (pip-freeze style)
