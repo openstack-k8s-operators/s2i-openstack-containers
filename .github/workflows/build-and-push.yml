@@ -1,0 +1,38 @@
+name: Build and push images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: quay.io
+      NAMESPACE: ${{ secrets.IMAGENAMESPACE }}
+      TAG: "master-latest,master-${{ github.sha }}"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup-tox
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y buildah podman
+
+      - name: Build images
+        run: tox -e build
+
+      - name: list images
+        run: podman images
+
+      - name: Log in to Quay
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      # I want to test we are setting the namespace and login properly before pushing
+      # uncomment later
+      #- name: Push images
+      #  run: tox -e custom -- push all
