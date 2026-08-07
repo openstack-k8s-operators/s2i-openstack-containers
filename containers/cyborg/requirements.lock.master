@@ -591,8 +591,3 @@ zipp==4.1.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==82.0.1
-    # via
-    #   paste
-    #   pbr
-    #   pecan
