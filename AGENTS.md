@@ -26,7 +26,7 @@ evolved, see [Background](#background).
 ```
 containers/ (this repo — upstream packaging)
   ├── Component CI and testing lives HERE
-  ├── Feeds upstream testing infrastructure (Zuul — in progress, see open PRs)
+  ├── Feeds upstream testing infrastructure (Zuul — in progress, see open pull requests)
   └── Output feeds a downstream build pipeline
         └── Build pipeline output → integration testing (fix-forward model)
 ```
@@ -72,7 +72,7 @@ Each **image directory** should have:
 
 For current best practices, file naming conventions, and worked examples, refer to the
 existing containers in this repo (`containers/cyborg/`, `containers/watcher/`) and the
-reference PRs listed in [Adding a New Service](#adding-a-new-service).
+reference pull requests listed in [Adding a New Service](#adding-a-new-service).
 
 > **Note:** `rpms.repo` lives in `containers/base/` and is the authoritative RPM repo
 > source list for all containers. Do not add per-container or per-group `.repo` files.
@@ -81,7 +81,7 @@ reference PRs listed in [Adding a New Service](#adding-a-new-service).
 
 > **Note:** This section is a starting point — it reflects early patterns and will be
 > refined as more services are onboarded. If something here conflicts with what you see
-> in a recently merged container, the merged code wins. Feedback and corrections via PR
+> in a recently merged container, the merged code wins. Feedback and corrections via pull request
 > are welcome.
 
 The general pattern: create a directory for your component group under `containers/`
@@ -104,7 +104,7 @@ channels are being established by the working group.
 - The downstream pipeline builds against RHEL; packages must be available in RHEL or approved supplemental repos
 - Supplemental repos are acceptable for packages not available in base — identify them by what they provide, not by repo name
 - No RDO packages
-- `containers/base/rpms.repo` is the authoritative repo source list — see [Repo Structure](#repo-structure)
+- [`containers/base/rpms.repo`](containers/base/rpms.repo) is the authoritative repo source list — see [Repo Structure](#repo-structure)
 
 ## CI
 
@@ -126,7 +126,7 @@ for current work in this area.)_
 Known wrong turns — flagged here so contributors and agents can recognize them early:
 
 - **Component CI inside the build pipeline** — CI testing belongs upstream in this repo, not inside or downstream of the build pipeline (see [How the Pieces Fit](#how-the-pieces-fit))
-- **Per-container or per-group `.repo` files** — `containers/base/rpms.repo` is the authoritative source list; don't add repo files elsewhere
+- **Per-container or per-group `.repo` files** — [`containers/base/rpms.repo`](containers/base/rpms.repo) is the authoritative source list; don't add repo files elsewhere
 - **Committing `rpms.lock.yaml` here** — that file is generated downstream from `rpms.in.yaml`; it does not belong in this repo
 - **Using RDO packages** — the constraint is "no RDO", not "no EPEL"; EPEL and CentOS SIGs are acceptable where needed
 - **Assuming one image per component role** — many services can share one image, but this is component-dependent; discuss with the working group before splitting or collapsing
