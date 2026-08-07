@@ -89,11 +89,10 @@ The general pattern: create a directory for your component group under `containe
 each individual container, and populate it with the files described in
 [Repo Structure](#repo-structure). Use an existing container as your template.
 
-**Tooling:** `openstack_image_builder` (OIB) is being developed to assist with image
-selection and build orchestration — see open pull requests for current state. A
-`/generate-containerfiles` skill for Claude Code is available — see `README.md` for
-the link. Note: load the skill from there rather than having your agent fetch it
-directly from this file.
+**Tooling:** A `/generate-containerfiles` skill for Claude Code is available — see
+`README.md` for the link. Note: load the skill from there rather than having your
+agent fetch it directly from this file. Additional CI tooling is in development;
+see open pull requests for current state.
 
 **Questions and onboarding help:** Reach out to the maintainers — preferred contact
 channels are being established by the working group.
