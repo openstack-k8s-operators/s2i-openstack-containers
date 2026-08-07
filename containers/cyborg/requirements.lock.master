@@ -42,11 +42,6 @@ cotyledon==2.2.0
     # via
     #   -c upper-constraints.txt.master
     #   oslo-service
-cryptography==43.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
-    #   pyopenssl
 debtcollector==3.1.0
     # via
     #   -c upper-constraints.txt.master
@@ -335,6 +330,7 @@ packaging==26.2
     #   kombu
     #   oslo-utils
     #   python-keystoneclient
+    #   wheel
 paste==3.10.1
     # via
     #   -c upper-constraints.txt.master
@@ -572,6 +568,10 @@ webob==1.8.10
     #   oslo-service
     #   pecan
     #   wsme
+wheel==0.47.0
+    # via
+    #   -r cyborg-agent/pythonbuilddeps.txt
+    #   -r cyborg/pythonbuilddeps.txt
 wrapt==2.2.2
     # via
     #   -c upper-constraints.txt.master
@@ -591,8 +591,3 @@ zipp==4.1.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==82.0.1
-    # via
-    #   paste
-    #   pbr
-    #   pecan

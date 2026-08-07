@@ -6,8 +6,6 @@
 #
 calver==2025.10.20
     # via trove-classifiers
-cffi==2.0.0
-    # via cryptography
 coherent-licensed==0.5.2
     # via
     #   importlib-metadata
@@ -65,9 +63,7 @@ hatchling==1.31.0
     #   urllib3
     #   wcwidth
 maturin==1.14.1
-    # via
-    #   cryptography
-    #   rpds-py
+    # via rpds-py
 packaging==26.2
     # via
     #   hatchling
@@ -112,8 +108,6 @@ pluggy==1.6.0
     # via hatchling
 poetry-core==2.4.1
     # via iso8601
-pycparser==3.0
-    # via cffi
 semantic-version==2.10.0
     # via setuptools-rust
 setuptools-rust==1.13.0
@@ -150,6 +144,8 @@ wheel==0.47.0
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==82.0.1
+    # via charset-normalizer
+setuptools==83.0.0
     # via
     #   alembic
     #   bcrypt
@@ -157,9 +153,7 @@ setuptools==82.0.1
     #   calver
     #   certifi
     #   cffi
-    #   charset-normalizer
     #   cotyledon
-    #   cryptography
     #   decorator
     #   dogpile-cache
     #   fasteners
@@ -179,6 +173,7 @@ setuptools==82.0.1
     #   pycparser
     #   pyjwt
     #   pymysql
+    #   python-dateutil
     #   pyyaml
     #   repoze-lru
     #   requests
@@ -192,7 +187,3 @@ setuptools==82.0.1
     #   wrapt
     #   yappi
     #   zipp
-setuptools==83.0.0
-    # via
-    #   python-dateutil
-    #   setuptools-scm
