@@ -1,0 +1,15 @@
+# Cloned source repos (populated by build.sh update-sources)
+containers/*/src/*/
+containers/*/*/src/*/
+
+# Generated lockfiles and constraints (per stream, e.g. *.master)
+containers/*/requirements.lock.*
+containers/*/buildrequirements.lock.*
+containers/*/upper-constraints.txt.*
+
+# Generated RPM lists
+containers/*/rpms.in.yaml
+containers/*/rpms.lock.yaml
+
+# Scratch dir for commit message drafts
+.tmp/
