@@ -6,8 +6,7 @@ repos:
       - id: update-lockfiles
         name: update-lockfiles
         language: system
-        entry: tox
-        args: ["-e", "update-lockfiles"]
+        entry: bash -xc 'if [ -n "${UPDATE_LOCKFILES_TARGETS}" ]; then services="${UPDATE_LOCKFILES_TARGETS}"; else services=$(git diff --cached --name-only | grep "^containers/" | cut -d/ -f2 | sort -u | tr "\n" " "); fi; if [ -n "${services}" ]; then tox -e update-lockfiles -- ${services} ;fi'
         pass_filenames: false
 
   - repo: https://github.com/pre-commit/pre-commit-hooks

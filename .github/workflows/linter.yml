@@ -7,7 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/detect-changed-services
+        id: changes
       - uses: ./.github/actions/setup-tox
 
       - name: Lint content
         run: tox -e linters
+        env:
+          UPDATE_LOCKFILES_TARGETS: ${{ steps.changes.outputs.services }}
