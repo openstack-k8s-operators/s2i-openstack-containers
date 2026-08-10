@@ -16,7 +16,7 @@ setuptools-scm==10.2.1
     # via
     #   crudini
     #   setuptools-scm
-vcs-versioning==2.2.3
+vcs-versioning==2.2.4
     # via setuptools-scm
 wheel==0.47.0
     # via crudini

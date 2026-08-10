@@ -80,6 +80,7 @@ packaging==26.0
     #   hatchling
 packaging==26.2
     # via
+    #   build
     #   hatchling
     #   setuptools-scm
     #   vcs-versioning
@@ -170,7 +171,7 @@ trove-classifiers==2026.6.1.19
     # via hatchling
 typing-extensions==4.15.0
     # via setuptools-scm
-vcs-versioning==2.2.3
+vcs-versioning==2.2.4
     # via setuptools-scm
 wheel==0.47.0
     # via
@@ -187,7 +188,7 @@ wheel==0.47.0
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==82.0.1
     # via charset-normalizer
-setuptools==83.0.0
+setuptools==84.0.0
     # via
     #   alembic
     #   apscheduler
