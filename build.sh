@@ -397,44 +397,48 @@ list_images() {
   fi
 }
 
-# Resolve which images to process
+# Resolve which images to process (accepts one or more targets)
 resolve_targets() {
-  local target="$1"
   local all_images
   all_images=($(discover_images))
+  local resolved=()
 
-  if [[ "${target}" == "all" ]]; then
-    echo "${all_images[@]}"
-    return
-  fi
-
-  # Exact match
-  for dir_name in "${all_images[@]}"; do
-    if [[ "${dir_name}" == "${target}" ]]; then
-      echo "${target}"
+  for target in "$@"; do
+    if [[ "${target}" == "all" ]]; then
+      echo "${all_images[@]}"
       return
     fi
+
+    local found=0
+
+    # Exact match
+    for dir_name in "${all_images[@]}"; do
+      if [[ "${dir_name}" == "${target}" ]]; then
+        resolved+=("${target}")
+        found=1
+        break
+      fi
+    done
+    [[ ${found} -eq 1 ]] && continue
+
+    # Project prefix match
+    for dir_name in "${all_images[@]}"; do
+      if [[ "${dir_name}" == "${target}/"* ]]; then
+        resolved+=("${dir_name}")
+        found=1
+      fi
+    done
+    [[ ${found} -eq 1 ]] && continue
+
+    echo "ERROR: Unknown image or project '${target}'" >&2
+    echo "Available images:" >&2
+    for dir_name in "${all_images[@]}"; do
+      echo "  ${dir_name}" >&2
+    done
+    return 1
   done
 
-  # Project prefix match
-  local matched=()
-  for dir_name in "${all_images[@]}"; do
-    if [[ "${dir_name}" == "${target}/"* ]]; then
-      matched+=("${dir_name}")
-    fi
-  done
-
-  if [[ ${#matched[@]} -gt 0 ]]; then
-    echo "${matched[@]}"
-    return
-  fi
-
-  echo "ERROR: Unknown image or project '${target}'" >&2
-  echo "Available images:" >&2
-  for dir_name in "${all_images[@]}"; do
-    echo "  ${dir_name}" >&2
-  done
-  return 1
+  echo "${resolved[@]}"
 }
 
 # Clone a repo at a branch tip (or tag) and store the resolved commit hash
@@ -691,8 +695,8 @@ generate_requirements_lock() {
 # Expects sources to be already cloned and constraints fetched
 # (done by update_sources). Cloned repos are cleaned up on exit.
 generate_locks_for_targets() {
-  local target="$1"
-  local stream="$2"
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
 
   if ! command -v pip-compile &>/dev/null; then
     echo "ERROR: pip-compile not found. Install it with: pip install pip-tools" >&2
@@ -700,7 +704,7 @@ generate_locks_for_targets() {
   fi
 
   local targets
-  targets=($(resolve_targets "${target}"))
+  targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _lock_projects_seen
   for img in "${targets[@]}"; do
@@ -741,8 +745,8 @@ generate_buildrequirements_lock() {
 
 # Generate buildrequirements.lock for each project in the target scope.
 generate_buildlocks_for_targets() {
-  local target="$1"
-  local stream="$2"
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
 
   if ! command -v pybuild-deps &>/dev/null; then
     echo "ERROR: pybuild-deps not found. Install it with: pip install pybuild-deps" >&2
@@ -750,7 +754,7 @@ generate_buildlocks_for_targets() {
   fi
 
   local targets
-  targets=($(resolve_targets "${target}"))
+  targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _buildlock_projects_seen
   for img in "${targets[@]}"; do
@@ -840,10 +844,8 @@ HEADER
 
 # Generate rpms.in.yaml for each project in the target scope.
 generate_rpms_in_for_targets() {
-  local target="$1"
-
   local targets
-  targets=($(resolve_targets "${target}"))
+  targets=($(resolve_targets "$@"))
 
   declare -A _rpms_projects_seen
   for img in "${targets[@]}"; do
@@ -864,8 +866,8 @@ generate_rpms_in_for_targets() {
 # Clones repos at the pinned hashes already recorded in sources.txt and
 # fetches upper-constraints.txt at those same hashes.
 ensure_sources_for_targets() {
-  local target="$1"
-  local stream="$2"
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
 
   if [[ -z "${stream}" ]]; then
     echo "ERROR: STREAM is required for update-sources." >&2
@@ -873,7 +875,7 @@ ensure_sources_for_targets() {
   fi
 
   local targets
-  targets=($(resolve_targets "${target}"))
+  targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _ensure_projects_seen
 
@@ -902,8 +904,8 @@ ensure_sources_for_targets() {
 # Clones source repos at branch tips to resolve hashes, fetches
 # upper-constraints.txt, and updates pinned hashes in sources.txt.
 update_sources() {
-  local target="$1"
-  local stream="$2"
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
 
   if [[ -z "${stream}" ]]; then
     echo "ERROR: STREAM is required for update-sources." >&2
@@ -912,7 +914,7 @@ update_sources() {
   fi
 
   local targets
-  targets=($(resolve_targets "${target}"))
+  targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A projects_seen
 
@@ -969,16 +971,21 @@ update_sources() {
 
 # Main
 ACTION="${1:-}"
-TARGET="${2:-all}"
+shift || true
+if [[ $# -gt 0 ]]; then
+  TARGETS=("$@")
+else
+  TARGETS=("all")
+fi
 
 case "${ACTION}" in
   build)
-    for img in $(resolve_targets "${TARGET}"); do
+    for img in $(resolve_targets "${TARGETS[@]}"); do
       build_image "${img}"
     done
     ;;
   build-parallel)
-    _bp_targets=($(resolve_targets "${TARGET}"))
+    _bp_targets=($(resolve_targets "${TARGETS[@]}"))
 
     # Build base first (all service images depend on it)
     for _bp_img in "${_bp_targets[@]}"; do
@@ -1061,7 +1068,7 @@ case "${ACTION}" in
     fi
     ;;
   push)
-    _push_targets=($(resolve_targets "${TARGET}"))
+    _push_targets=($(resolve_targets "${TARGETS[@]}"))
 
     # Verify all images and tags exist before pushing any
     echo "--- Verifying all images exist locally ---"
@@ -1077,29 +1084,29 @@ case "${ACTION}" in
   update-sources)
     if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
       echo "=== Skipping hash update (SKIP_HASH_UPDATE is set) ==="
-      ensure_sources_for_targets "${TARGET}" "${STREAM}"
+      ensure_sources_for_targets "${TARGETS[@]}" "${STREAM}"
     else
-      update_sources "${TARGET}" "${STREAM}"
+      update_sources "${TARGETS[@]}" "${STREAM}"
     fi
 
     # Generate lockfiles and metadata
     echo ""
     echo "=== Generating rpms.in.yaml files ==="
-    generate_rpms_in_for_targets "${TARGET}"
+    generate_rpms_in_for_targets "${TARGETS[@]}"
 
     echo ""
     echo "=== Generating requirements.lock files ==="
-    generate_locks_for_targets "${TARGET}" "${STREAM}"
+    generate_locks_for_targets "${TARGETS[@]}" "${STREAM}"
 
     echo ""
     echo "=== Generating buildrequirements.lock files ==="
-    generate_buildlocks_for_targets "${TARGET}" "${STREAM}"
+    generate_buildlocks_for_targets "${TARGETS[@]}" "${STREAM}"
 
     # Create un-streamed symlinks for the default stream
     if [[ "${STREAM}" == "${DEFAULT_STREAM}" ]]; then
       echo ""
       echo "=== Creating default stream symlinks (${DEFAULT_STREAM}) ==="
-      _symlink_targets=($(resolve_targets "${TARGET}"))
+      _symlink_targets=($(resolve_targets "${TARGETS[@]}"))
       declare -A _symlink_seen
       for _s_img in "${_symlink_targets[@]}"; do
         _s_project="$(project_name "${_s_img}")"
@@ -1143,7 +1150,7 @@ case "${ACTION}" in
     list_images
     ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|update-sources|install-deps|list} [image-name|all]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|update-sources|install-deps|list} [target ...]"
     echo ""
     echo "Images (discovered from containers/):"
     for dir_name in $(discover_images); do

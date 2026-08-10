@@ -92,10 +92,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TEST_DIR=""
 UPSTREAM_REQ=""
 UPSTREAM_SVC=""
+UPSTREAM_SVC2=""
+UPSTREAM_SVC3=""
 REQ_HASH_OLD=""
 REQ_HASH_NEW=""
 SVC_HASH_OLD=""
 SVC_HASH_NEW=""
+SVC2_HASH_OLD=""
+SVC2_HASH_NEW=""
+SVC3_HASH_OLD=""
+SVC3_HASH_NEW=""
 
 _init_work_repo() {
   local dir="$1"
@@ -143,6 +149,40 @@ _setup_fixture() {
   SVC_HASH_OLD="$(git -C "${UPSTREAM_SVC}" rev-parse master~1)"
   SVC_HASH_NEW="$(git -C "${UPSTREAM_SVC}" rev-parse master)"
 
+  # ── Upstream service 2 repo (2 commits) ──
+  UPSTREAM_SVC2="${TEST_DIR}/upstream/test-svc2.git"
+  work="$(mktemp -d)"
+  _init_work_repo "${work}"
+
+  echo "six" > "${work}/requirements.txt"
+  git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v1" >/dev/null 2>&1
+
+  printf 'six\npbr\n' > "${work}/requirements.txt"
+  git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v2" >/dev/null 2>&1
+
+  git clone --bare "${work}" "${UPSTREAM_SVC2}" >/dev/null 2>&1
+  rm -rf "${work}"
+
+  SVC2_HASH_OLD="$(git -C "${UPSTREAM_SVC2}" rev-parse master~1)"
+  SVC2_HASH_NEW="$(git -C "${UPSTREAM_SVC2}" rev-parse master)"
+
+  # ── Upstream service 3 repo (2 commits) ──
+  UPSTREAM_SVC3="${TEST_DIR}/upstream/test-svc3.git"
+  work="$(mktemp -d)"
+  _init_work_repo "${work}"
+
+  echo "six" > "${work}/requirements.txt"
+  git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v1" >/dev/null 2>&1
+
+  printf 'six\npbr\n' > "${work}/requirements.txt"
+  git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v2" >/dev/null 2>&1
+
+  git clone --bare "${work}" "${UPSTREAM_SVC3}" >/dev/null 2>&1
+  rm -rf "${work}"
+
+  SVC3_HASH_OLD="$(git -C "${UPSTREAM_SVC3}" rev-parse master~1)"
+  SVC3_HASH_NEW="$(git -C "${UPSTREAM_SVC3}" rev-parse master)"
+
   # ── Symlink build.sh ──
   ln -s "${SCRIPT_DIR}/build.sh" "${TEST_DIR}/build.sh"
 
@@ -160,6 +200,36 @@ EOF
   echo "gcc"          > "${TEST_DIR}/containers/test-svc/test-svc/builddeps.txt"
   touch                 "${TEST_DIR}/containers/test-svc/test-svc/pythondeps.txt"
   touch                 "${TEST_DIR}/containers/test-svc/test-svc/pythonbuilddeps.txt"
+
+  # ── Second project containers tree ──
+  mkdir -p "${TEST_DIR}/containers/test-svc2/src"
+  mkdir -p "${TEST_DIR}/containers/test-svc2/test-svc2/src"
+
+  cat > "${TEST_DIR}/containers/test-svc2/sources.txt" <<EOF
+master upper-constraints ${UPSTREAM_REQ} master ${REQ_HASH_OLD}
+master test-svc2 ${UPSTREAM_SVC2} master ${SVC2_HASH_OLD}
+EOF
+
+  echo "FROM scratch" > "${TEST_DIR}/containers/test-svc2/test-svc2/Containerfile"
+  echo "python3"      > "${TEST_DIR}/containers/test-svc2/test-svc2/bindeps.txt"
+  echo "gcc"          > "${TEST_DIR}/containers/test-svc2/test-svc2/builddeps.txt"
+  touch                 "${TEST_DIR}/containers/test-svc2/test-svc2/pythondeps.txt"
+  touch                 "${TEST_DIR}/containers/test-svc2/test-svc2/pythonbuilddeps.txt"
+
+  # ── Third project containers tree ──
+  mkdir -p "${TEST_DIR}/containers/test-svc3/src"
+  mkdir -p "${TEST_DIR}/containers/test-svc3/test-svc3/src"
+
+  cat > "${TEST_DIR}/containers/test-svc3/sources.txt" <<EOF
+master upper-constraints ${UPSTREAM_REQ} master ${REQ_HASH_OLD}
+master test-svc3 ${UPSTREAM_SVC3} master ${SVC3_HASH_OLD}
+EOF
+
+  echo "FROM scratch" > "${TEST_DIR}/containers/test-svc3/test-svc3/Containerfile"
+  echo "python3"      > "${TEST_DIR}/containers/test-svc3/test-svc3/bindeps.txt"
+  echo "gcc"          > "${TEST_DIR}/containers/test-svc3/test-svc3/builddeps.txt"
+  touch                 "${TEST_DIR}/containers/test-svc3/test-svc3/pythondeps.txt"
+  touch                 "${TEST_DIR}/containers/test-svc3/test-svc3/pythonbuilddeps.txt"
 }
 
 _teardown_fixture() {
@@ -170,6 +240,18 @@ _teardown_fixture() {
 # Usage: _run_build STREAM=master [SKIP_HASH_UPDATE=1 ...]
 _run_build() {
   (cd "${TEST_DIR}" && env "$@" ./build.sh update-sources test-svc) >"${TEST_DIR}/build.log" 2>&1
+}
+
+# Helper: run build.sh with arbitrary action and targets.
+# Usage: _run_cmd <env_var=val ...> -- <action> [targets...]
+_run_cmd() {
+  local env_args=()
+  while [[ $# -gt 0 && "$1" != "--" ]]; do
+    env_args+=("$1")
+    shift
+  done
+  [[ "$1" == "--" ]] && shift
+  (cd "${TEST_DIR}" && env "${env_args[@]}" ./build.sh "$@") >"${TEST_DIR}/build.log" 2>&1
 }
 
 # ── Tests ────────────────────────────────────────────────────────────────
@@ -323,6 +405,90 @@ test_preexisting_checkout_is_preserved() {
   assert_field "${TEST_DIR}/containers/test-svc/sources.txt" master test-svc 5 "${SVC_HASH_OLD}"
 }
 
+# ── Multi-target tests ──────────────────────────────────────────────────
+
+test_list_discovers_all_projects() {
+  _run_cmd STREAM=master -- list
+  assert_grep "test-svc/test-svc" "${TEST_DIR}/build.log"
+  assert_grep "test-svc2/test-svc2" "${TEST_DIR}/build.log"
+}
+
+test_update_sources_multiple_targets() {
+  _run_cmd STREAM=master -- update-sources test-svc test-svc2
+
+  local src1="${TEST_DIR}/containers/test-svc/sources.txt"
+  local src2="${TEST_DIR}/containers/test-svc2/sources.txt"
+  local src3="${TEST_DIR}/containers/test-svc3/sources.txt"
+  assert_field "${src1}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_field "${src2}" master test-svc2 5 "${SVC2_HASH_NEW}"
+  assert_field "${src3}" master test-svc3 5 "${SVC3_HASH_OLD}"
+}
+
+test_update_sources_multiple_targets_fetches_constraints() {
+  _run_cmd STREAM=master -- update-sources test-svc test-svc2
+
+  assert_file_exists "${TEST_DIR}/containers/test-svc/upper-constraints.txt.master"
+  assert_file_exists "${TEST_DIR}/containers/test-svc2/upper-constraints.txt.master"
+  assert "no constraints for test-svc3" test ! -f "${TEST_DIR}/containers/test-svc3/upper-constraints.txt.master"
+}
+
+test_update_sources_multiple_targets_generates_lockfiles() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  _run_cmd STREAM=master -- update-sources test-svc test-svc2
+
+  assert_file_exists "${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${TEST_DIR}/containers/test-svc2/requirements.lock.master"
+  assert "no lockfile for test-svc3" test ! -f "${TEST_DIR}/containers/test-svc3/requirements.lock.master"
+}
+
+test_update_sources_multiple_targets_generates_rpms_in() {
+  _run_cmd STREAM=master -- update-sources test-svc test-svc2
+
+  assert_file_exists "${TEST_DIR}/containers/test-svc/rpms.in.yaml"
+  assert_file_exists "${TEST_DIR}/containers/test-svc2/rpms.in.yaml"
+  assert "no rpms.in.yaml for test-svc3" test ! -f "${TEST_DIR}/containers/test-svc3/rpms.in.yaml"
+}
+
+test_update_sources_single_target_does_not_affect_other() {
+  _run_cmd STREAM=master -- update-sources test-svc
+
+  local src2="${TEST_DIR}/containers/test-svc2/sources.txt"
+  assert_field "${src2}" master test-svc2 5 "${SVC2_HASH_OLD}"
+}
+
+test_update_sources_all_updates_everything() {
+  _run_cmd STREAM=master -- update-sources all
+
+  local src1="${TEST_DIR}/containers/test-svc/sources.txt"
+  local src2="${TEST_DIR}/containers/test-svc2/sources.txt"
+  local src3="${TEST_DIR}/containers/test-svc3/sources.txt"
+  assert_field "${src1}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_field "${src2}" master test-svc2 5 "${SVC2_HASH_NEW}"
+  assert_field "${src3}" master test-svc3 5 "${SVC3_HASH_NEW}"
+}
+
+test_update_sources_unknown_target_fails() {
+  if _run_cmd STREAM=master -- update-sources nonexistent 2>/dev/null; then
+    echo "    ASSERTION FAILED: expected failure for unknown target"
+    return 1
+  fi
+  assert_grep "ERROR: Unknown image or project" "${TEST_DIR}/build.log"
+}
+
+test_update_sources_multiple_targets_symlinks() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+  command -v pybuild-deps >/dev/null 2>&1 || skip_test "pybuild-deps not on PATH"
+
+  _run_cmd STREAM=master DEFAULT_STREAM=master -- update-sources test-svc test-svc2
+
+  for proj in test-svc test-svc2; do
+    local d="${TEST_DIR}/containers/${proj}"
+    assert_symlink "${d}/requirements.lock"
+    assert_link_target "${d}/requirements.lock" "requirements.lock.master"
+  done
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────
 
 echo "=== update-sources tests ==="
@@ -342,6 +508,15 @@ TESTS=(
   test_hash_in_branch_field_regular_repo
   test_lockfile_excludes_rpm_python_packages
   test_preexisting_checkout_is_preserved
+  test_list_discovers_all_projects
+  test_update_sources_multiple_targets
+  test_update_sources_multiple_targets_fetches_constraints
+  test_update_sources_multiple_targets_generates_lockfiles
+  test_update_sources_multiple_targets_generates_rpms_in
+  test_update_sources_single_target_does_not_affect_other
+  test_update_sources_all_updates_everything
+  test_update_sources_unknown_target_fails
+  test_update_sources_multiple_targets_symlinks
 )
 
 for t in "${TESTS[@]}"; do
