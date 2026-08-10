@@ -1,0 +1,33 @@
+name: Detect changed services
+description: >
+  Find which services (directories under containers/) have been modified
+  in the current pull request. Returns a space-separated list.
+
+inputs:
+  token:
+    description: GitHub token for API access
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  services:
+    description: Space-separated list of changed service names (empty if none or not a PR)
+    value: ${{ steps.detect.outputs.services }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect changed services
+      id: detect
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        services=$(gh pr diff "${{ github.event.pull_request.number }}" --name-only \
+          | grep '^containers/' \
+          | cut -d/ -f2 \
+          | sort -u \
+          | tr '\n' ' ')
+        echo "services=${services}" >> "$GITHUB_OUTPUT"
+        echo "Changed services: ${services:-none}"
+      env:
+        GH_TOKEN: ${{ inputs.token }}

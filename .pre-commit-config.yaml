@@ -6,8 +6,7 @@ repos:
       - id: update-lockfiles
         name: update-lockfiles
         language: system
-        entry: tox
-        args: ["-e", "update-lockfiles"]
+        entry: bash hack/update-lockfiles-checker.sh
         pass_filenames: false
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
