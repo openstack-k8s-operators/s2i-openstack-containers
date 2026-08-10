@@ -2,3 +2,5 @@
 oslo.db[mysql]
 # Caching backend (dogpile extra for oslo.cache)
 oslo.cache[dogpile]
+# fake to test
+mock
