@@ -1,6 +1,15 @@
 ---
 # Containerfile and repo hygiene hooks.
 repos:
+  - repo: local
+    hooks:
+      - id: update-lockfiles
+        name: update-lockfiles
+        language: system
+        entry: tox
+        args: ["-e", "update-lockfiles"]
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
