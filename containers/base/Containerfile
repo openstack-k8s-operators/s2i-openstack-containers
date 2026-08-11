@@ -57,6 +57,7 @@ RUN if [ ! -f "/etc/pki/tls/cert.pem" ]; then \
 
 # Install kolla helper scripts
 COPY scripts/uid_gid_manage /usr/local/bin/uid_gid_manage
+COPY scripts/zz_generated_users.txt /usr/local/bin/zz_generated_users.txt
 COPY scripts/kolla_set_configs /usr/local/bin/kolla_set_configs
 COPY scripts/kolla_start /usr/local/bin/kolla_start
 COPY scripts/kolla_httpd_setup /usr/local/bin/kolla_httpd_setup

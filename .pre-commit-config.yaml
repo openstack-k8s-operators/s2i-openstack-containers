@@ -9,6 +9,20 @@ repos:
         entry: bash hack/update-lockfiles-checker.sh
         pass_filenames: false
 
+      - id: verify-service-uids
+        name: verify-service-uids
+        language: system
+        entry: make verify-service-uids
+        files: ^users/
+        pass_filenames: false
+
+      - id: test-users
+        name: test-users
+        language: system
+        entry: make test-users
+        files: ^users/
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
