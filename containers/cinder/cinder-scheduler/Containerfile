@@ -16,11 +16,11 @@ ENV PIP_NO_BINARY=${PIP_NO_BINARY}
 # required to build rpds-py from source
 ENV MATURIN_NO_INSTALL_RUST=true
 
-COPY cinder-scheduler/builddeps.txt /tmp/builddeps.txt
+COPY builddeps.txt /tmp/builddeps.txt
 RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
 
-COPY cinder-scheduler/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+COPY pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
 RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
     rm /tmp/pythonbuilddeps.txt
@@ -62,7 +62,7 @@ LABEL summary="OpenStack Cinder Scheduler" \
 
 RUN uid_gid_manage cinder
 
-COPY cinder-scheduler/bindeps.txt /tmp/bindeps.txt
+COPY bindeps.txt /tmp/bindeps.txt
 RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
     rm /tmp/bindeps.txt
@@ -70,7 +70,7 @@ RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && 
 COPY --from=build /wheels /wheels
 COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
 COPY --from=build /source-built-packages.txt /source-built-packages.txt
-COPY cinder-scheduler/pythondeps.txt /tmp/pythondeps.txt
+COPY pythondeps.txt /tmp/pythondeps.txt
 RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     pip3 install --no-cache-dir --prefix=/usr \
       -c /deps-upper-constraints.txt \

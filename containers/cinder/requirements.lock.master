@@ -1,6 +1,6 @@
 #
 #
-#    pip-compile --allow-unsafe --constraint=upper-constraints.txt.master --output-file=requirements.lock.master --strip-extras cinder-api/pythonbuilddeps.txt cinder-api/pythondeps.txt cinder-backup/pythonbuilddeps.txt cinder-backup/pythondeps.txt cinder-scheduler/pythonbuilddeps.txt cinder-scheduler/pythondeps.txt cinder-volume/pythonbuilddeps.txt cinder-volume/pythondeps.txt src/cinder/requirements.txt
+#    pip-compile --allow-unsafe --constraint=upper-constraints.txt.master --output-file=requirements.lock.master --strip-extras pythonbuilddeps.txt pythondeps.txt src/cinder/requirements.txt
 #
 alembic==1.18.5
     # via
@@ -264,17 +264,14 @@ os-brick==7.1.0
     # via
     #   -c upper-constraints.txt.master
     #   -r src/cinder/requirements.txt
-os-service-types==1.8.2
+os-service-types==1.9.0
     # via
     #   -c upper-constraints.txt.master
     #   keystoneauth1
 oslo-cache==4.3.0
     # via
     #   -c upper-constraints.txt.master
-    #   -r cinder-api/pythondeps.txt
-    #   -r cinder-backup/pythondeps.txt
-    #   -r cinder-scheduler/pythondeps.txt
-    #   -r cinder-volume/pythondeps.txt
+    #   -r pythondeps.txt
     #   keystonemiddleware
 oslo-concurrency==7.6.1
     # via
@@ -323,10 +320,7 @@ oslo-context==6.5.0
 oslo-db==18.1.0
     # via
     #   -c upper-constraints.txt.master
-    #   -r cinder-api/pythondeps.txt
-    #   -r cinder-backup/pythondeps.txt
-    #   -r cinder-scheduler/pythondeps.txt
-    #   -r cinder-volume/pythondeps.txt
+    #   -r pythondeps.txt
     #   -r src/cinder/requirements.txt
 oslo-i18n==6.9.0
     # via
@@ -495,10 +489,7 @@ pastedeploy==3.1.0
 pbr==7.0.3
     # via
     #   -c upper-constraints.txt.master
-    #   -r cinder-api/pythonbuilddeps.txt
-    #   -r cinder-backup/pythonbuilddeps.txt
-    #   -r cinder-scheduler/pythonbuilddeps.txt
-    #   -r cinder-volume/pythonbuilddeps.txt
+    #   -r pythonbuilddeps.txt
     #   -r src/cinder/requirements.txt
     #   castellan
     #   cursive

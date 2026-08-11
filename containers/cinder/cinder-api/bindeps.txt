@@ -2,7 +2,3 @@
 httpd
 mod_ssl
 python3-mod_wsgi
-python3
-python3-pip
-# cryptography from RPM for certifications and CVE handling
-python3-cryptography

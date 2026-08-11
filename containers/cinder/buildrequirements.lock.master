@@ -27,7 +27,7 @@ tomlkit==0.15.1
 trove-classifiers==2026.6.1.19
 typing-extensions==4.15.0
 vcs-versioning==2.2.4
-wheel==0.47.0
+wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==82.0.1
