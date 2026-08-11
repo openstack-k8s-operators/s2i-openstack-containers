@@ -330,6 +330,13 @@ Two-stage build:
 | `SKIP_HASH_UPDATE` | *(unset)* | If set, `update-sources` skips updating pinned hashes and clones repos at existing pins; lockfiles are still regenerated |
 | `PIP_NO_BINARY` | *(unset)* | If set, passed as `--build-arg` to the container build so pip builds packages from source (e.g., `:all:`) |
 
+## Tooling
+
+The `/generate-containerfiles` Claude Code skill is available in the
+[openstack-k8s-operators/devskills](https://github.com/openstack-k8s-operators/devskills)
+repo. It generates the initial file set for a new service from a service name —
+useful starting point before following the manual steps below.
+
 ## Adding a new service
 
 1. Create the project directory structure:
