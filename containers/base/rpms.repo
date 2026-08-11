@@ -55,11 +55,15 @@ name=CentOS Stream 10 - BaseOS
 baseurl=http://mirror.stream.centos.org/10-stream/BaseOS/$basearch/os/
 enabled=1
 gpgcheck=0
-excludepkgs=openssl*
 
 [centos10-appstream]
 name=CentOS Stream 10 - AppStream
 baseurl=http://mirror.stream.centos.org/10-stream/AppStream/$basearch/os/
 enabled=1
 gpgcheck=0
-excludepkgs=openssl*
+
+[centos10-crb]
+name=CentOS Stream 10 - CRB
+baseurl=http://mirror.stream.centos.org/10-stream/CRB/$basearch/os/
+enabled=1
+gpgcheck=0

@@ -32,6 +32,14 @@ COPY rpms.repo /etc/yum.repos.d/rpms.repo
 
 COPY bindeps.txt /tmp/bindeps.txt
 
+# As centos repos enabled with rpms.repo, to avoid conflicts remove ubi repo if exists
+RUN if [ -f "/etc/yum.repos.d/ubi.repo" ]; then rm -f /etc/yum.repos.d/ubi.repo && microdnf clean all && rm -rf /var/cache/dnf; fi
+
+# As this was introduced RHEL only https://redhat.atlassian.net/browse/RHEL-30258 and later bundled differently
+# for CentOS https://redhat.atlassian.net/browse/RHEL-105298
+# remove this until fixed in CentOS-10-stream
+RUN rpm -e openssl-fips-provider-so --nodeps || true
+
 RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all && rm -rf /var/cache/dnf; fi && \
     rm /tmp/bindeps.txt
