@@ -1,0 +1,136 @@
+---
+# Stage Zuul-cloned source repos into containers/<project>/src/<name>/
+# so build.sh uses them as-is (no re-clone of pinned hashes).
+#
+# Contract:
+# - No-op when s2i_build_sources is unset or empty.
+# - Each entry requires: project (zuul.projects key), dest (relative under repo).
+# - Optional: name (label only).
+# - Fails if project is missing from zuul.projects, checkout missing on disk,
+#   or dest escapes the repo / looks unsafe.
+#
+# Job vars example:
+#   s2i_build_sources:
+#     - name: watcher
+#       project: opendev.org/openstack/watcher
+#       dest: containers/watcher/src/watcher
+
+- name: Prepare s2i sources from Zuul checkouts
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Resolve s2i checkout directory
+      ansible.builtin.set_fact:
+        s2i_build_repo_dir: >-
+          {{
+            s2i_build_repo_dir | default('', true)
+            if (s2i_build_repo_dir | default('', true) | length) > 0
+            else (
+              ansible_user_dir ~ '/' ~ zuul.project.src_dir
+              if (zuul is defined and zuul.project is defined)
+              else ''
+            )
+          }}
+
+    - name: Require s2i_build_repo_dir when staging sources
+      when: s2i_build_sources | default([]) | length > 0
+      ansible.builtin.assert:
+        that:
+          - s2i_build_repo_dir | length > 0
+        fail_msg: >-
+          s2i_build_repo_dir is empty; cannot stage sources. Pass the variable
+          or run under Zuul so zuul.project.src_dir is available.
+
+    - name: Stage Zuul checkouts into src/
+      when: s2i_build_sources | default([]) | length > 0
+      block:
+        - name: Validate each s2i_build_sources entry
+          ansible.builtin.assert:
+            that:
+              - item.project is defined
+              - item.project is string
+              - item.project | length > 0
+              - item.dest is defined
+              - item.dest is string
+              - item.dest | length > 0
+              - "'..' not in item.dest"
+              - item.dest is match('^containers/')
+              - item.dest is not match('/$')
+            fail_msg: >-
+              Invalid s2i_build_sources entry {{ item }}: require non-empty
+              project and dest under containers/ without '..' or trailing slash.
+          loop: "{{ s2i_build_sources }}"
+          loop_control:
+            label: "{{ item.name | default(item.dest) }}"
+
+        - name: Require Zuul project inventory for staging
+          ansible.builtin.assert:
+            that:
+              - zuul is defined
+              - zuul.projects is defined
+              - item.project in zuul.projects
+              - zuul.projects[item.project].src_dir is defined
+            fail_msg: >-
+              Project '{{ item.project }}' is not in zuul.projects; add it to
+              required-projects / Depends-On before staging into {{ item.dest }}.
+          loop: "{{ s2i_build_sources }}"
+          loop_control:
+            label: "{{ item.project }}"
+
+        - name: Resolve absolute source checkout paths
+          ansible.builtin.set_fact:
+            s2i_build_source_pairs: >-
+              {{
+                s2i_build_source_pairs | default([]) + [{
+                  'name': item.name | default(item.dest),
+                  'project': item.project,
+                  'src': ansible_user_dir ~ '/' ~ zuul.projects[item.project].src_dir,
+                  'dest': s2i_build_repo_dir ~ '/' ~ item.dest
+                }]
+              }}
+          loop: "{{ s2i_build_sources }}"
+          loop_control:
+            label: "{{ item.project }}"
+
+        - name: Stat each Zuul checkout to stage
+          ansible.builtin.stat:
+            path: "{{ item.src }}"
+          loop: "{{ s2i_build_source_pairs }}"
+          loop_control:
+            label: "{{ item.project }}"
+          register: s2i_build_source_stats
+
+        - name: Fail when a Zuul checkout is missing on disk
+          ansible.builtin.assert:
+            that:
+              - item.stat.exists | default(false)
+              - item.stat.isdir | default(false)
+            fail_msg: >-
+              Expected Zuul checkout directory missing or not a directory:
+              {{ item.item.src }} (project {{ item.item.project }}).
+          loop: "{{ s2i_build_source_stats.results }}"
+          loop_control:
+            label: "{{ item.item.project }}"
+
+        - name: Ensure each source destination directory exists
+          ansible.builtin.file:
+            path: "{{ item.dest }}"
+            state: directory
+            mode: "0755"
+          loop: "{{ s2i_build_source_pairs }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Synchronize Zuul checkout into src/ via rsync
+          ansible.builtin.command:
+            argv:
+              - rsync
+              - -a
+              - --delete
+              - "{{ item.src }}/"
+              - "{{ item.dest }}/"
+          loop: "{{ s2i_build_source_pairs }}"
+          loop_control:
+            label: "{{ item.project }} -> {{ item.dest }}"
+          # rsync --delete replaces prior overlay contents intentionally
+          changed_when: true

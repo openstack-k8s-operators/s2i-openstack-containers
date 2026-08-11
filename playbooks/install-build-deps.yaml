@@ -1,0 +1,13 @@
+---
+# Install host tools required by build.sh (not present on bare centos nodesets).
+- name: Install s2i container build dependencies
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install buildah and podman
+      ansible.builtin.package:
+        name:
+          - buildah
+          - podman
+        state: present

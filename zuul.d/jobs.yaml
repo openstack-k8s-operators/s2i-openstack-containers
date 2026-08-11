@@ -1,0 +1,69 @@
+---
+# Job definitions for s2i-openstack-containers.
+# Pattern mirrors data-plane-adoption: jobs here, layout in jobs-layout.yaml.
+# Build jobs use RDO base + rdo-jobs CS10 nodeset (no ci-framework).
+
+- job:
+    name: s2i-openstack-containers-tox
+    parent: tox
+    description: |
+      Run repository tests (update-sources contract + s2i_build role mocks).
+      tox.ini pins base_python=3.12 (ansible-core>=2.18); ensure-python
+      installs it on the default RDO unit-test nodes (system python is 3.9).
+    vars:
+      tox_envlist: test
+      python_version: "3.12"
+
+- job:
+    name: s2i-openstack-containers-build-base
+    parent: base
+    abstract: true
+    description: |
+      Abstract base: install buildah/podman, stage Zuul checkouts into
+      containers/*/src via pre.yaml, then invoke build.sh through s2i_build.
+    timeout: 7200
+    # UBI 10 builds; nodeset from rdo-jobs (same label as tcib container jobs).
+    nodeset: single-centos-10-stream-node
+    roles:
+      - zuul: github.com/openstack-k8s-operators/s2i-openstack-containers
+    required-projects:
+      - github.com/openstack-k8s-operators/s2i-openstack-containers
+    pre-run:
+      - playbooks/install-build-deps.yaml
+      - playbooks/pre.yaml
+    run: playbooks/run.yaml
+    vars:
+      s2i_build_stream: master
+      s2i_build_registry: localhost
+      s2i_build_namespace: openstack
+      s2i_build_tag: master-latest
+      s2i_build_push: false
+      s2i_build_action: build
+      s2i_build_include_base: true
+      s2i_build_targets:
+        - all
+
+- job:
+    name: s2i-openstack-containers-build-provider
+    parent: s2i-openstack-containers-build-base
+    description: |
+      Build all images from this repository (provider-style).
+    vars:
+      s2i_build_targets:
+        - all
+
+- job:
+    name: s2i-openstack-containers-build-watcher
+    parent: s2i-openstack-containers-build-base
+    description: |
+      Build watcher images, overlaying the Zuul checkout of openstack/watcher
+      into containers/watcher/src/watcher/.
+    required-projects:
+      - opendev.org/openstack/watcher
+    vars:
+      s2i_build_targets:
+        - watcher
+      s2i_build_sources:
+        - name: watcher
+          project: opendev.org/openstack/watcher
+          dest: containers/watcher/src/watcher

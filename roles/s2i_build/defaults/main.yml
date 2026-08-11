@@ -1,0 +1,36 @@
+---
+# Thin wrapper around build.sh. Build logic stays in this repository;
+# this role only maps job variables to environment and invokes build.sh.
+#
+# Required: set s2i_build_repo_dir to the s2i-openstack-containers checkout.
+# Playbooks may resolve it from Zuul; local runs must pass it explicitly.
+
+# Absolute path to a checkout of s2i-openstack-containers (required)
+s2i_build_repo_dir: ""
+
+# Passed through to build.sh as STREAM
+s2i_build_stream: master
+
+# One or more build.sh targets: "all", "<project>", or "<project>/<image>"
+# A single string is also accepted and normalized to a one-item list.
+s2i_build_targets:
+  - all
+
+# Image naming / registry (build.sh env vars)
+s2i_build_registry: localhost
+s2i_build_namespace: openstack
+s2i_build_tag: "{{ s2i_build_stream }}-latest"
+s2i_build_image_prefix: openstack
+
+# Optional override for service builds that skip rebuilding base
+s2i_build_base_image: ""
+
+# Whether to push after a successful build
+s2i_build_push: false
+
+# When targets include project/image paths (not only "all" / "base"), build
+# openstack-base first unless s2i_build_base_image is set.
+s2i_build_include_base: true
+
+# build.sh action: build | build-parallel
+s2i_build_action: build

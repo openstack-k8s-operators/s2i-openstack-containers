@@ -1,0 +1,21 @@
+---
+- name: Build s2i OpenStack containers
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Resolve s2i checkout directory
+      ansible.builtin.set_fact:
+        s2i_build_repo_dir: >-
+          {{
+            s2i_build_repo_dir | default('', true)
+            if (s2i_build_repo_dir | default('', true) | length) > 0
+            else (
+              ansible_user_dir ~ '/' ~ zuul.project.src_dir
+              if (zuul is defined and zuul.project is defined)
+              else ''
+            )
+          }}
+
+    - name: Invoke s2i_build role
+      ansible.builtin.include_role:
+        name: s2i_build

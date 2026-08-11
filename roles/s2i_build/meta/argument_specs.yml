@@ -1,0 +1,51 @@
+---
+argument_specs:
+  main:
+    short_description: Invoke s2i-openstack-containers build.sh
+    description:
+      - Thin wrapper that maps role variables to build.sh environment and
+        runs build (and optionally push).
+      - Does not stage Zuul sources into src/; use playbooks/pre.yaml for that.
+    options:
+      s2i_build_repo_dir:
+        type: str
+        required: true
+        description: Absolute path to the s2i-openstack-containers checkout.
+      s2i_build_stream:
+        type: str
+        default: master
+        description: STREAM passed to build.sh.
+      s2i_build_targets:
+        type: raw
+        default: ['all']
+        description: >
+          Target or list of targets for build.sh (all, project, or
+          project/image).
+      s2i_build_registry:
+        type: str
+        default: localhost
+      s2i_build_namespace:
+        type: str
+        default: openstack
+      s2i_build_tag:
+        type: str
+        default: master-latest
+      s2i_build_image_prefix:
+        type: str
+        default: openstack
+      s2i_build_base_image:
+        type: str
+        default: ""
+        description: Optional BASE_IMAGE override for build.sh.
+      s2i_build_push:
+        type: bool
+        default: false
+      s2i_build_include_base:
+        type: bool
+        default: true
+      s2i_build_action:
+        type: str
+        default: build
+        choices:
+          - build
+          - build-parallel

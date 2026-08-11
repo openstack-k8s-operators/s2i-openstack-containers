@@ -1,0 +1,46 @@
+---
+- name: Validate role inputs
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Assemble build.sh environment
+  ansible.builtin.set_fact:
+    s2i_build_environment:
+      STREAM: "{{ s2i_build_stream }}"
+      REGISTRY: "{{ s2i_build_registry }}"
+      NAMESPACE: "{{ s2i_build_namespace }}"
+      TAG: "{{ s2i_build_tag }}"
+      IMAGE_PREFIX: "{{ s2i_build_image_prefix }}"
+
+- name: Add BASE_IMAGE override when set
+  when: s2i_build_base_image | default('') | length > 0
+  ansible.builtin.set_fact:
+    s2i_build_environment: "{{ s2i_build_environment | combine({'BASE_IMAGE': s2i_build_base_image}) }}"
+
+- name: Build openstack-base first when needed
+  when:
+    - s2i_build_include_base | bool
+    - s2i_build_base_image | default('') | length == 0
+    - s2i_build_targets_list | difference(['all', 'base']) | length > 0
+  ansible.builtin.command:
+    argv:
+      - ./build.sh
+      - "{{ s2i_build_action }}"
+      - base
+    chdir: "{{ s2i_build_repo_dir }}"
+  environment: "{{ s2i_build_environment }}"
+  register: s2i_build_base_result
+
+- name: Run build.sh for requested targets
+  ansible.builtin.command:
+    argv: "{{ ['./build.sh', s2i_build_action] + s2i_build_targets_list }}"
+    chdir: "{{ s2i_build_repo_dir }}"
+  environment: "{{ s2i_build_environment }}"
+  register: s2i_build_result
+
+- name: Push images when requested
+  when: s2i_build_push | bool
+  ansible.builtin.command:
+    argv: "{{ ['./build.sh', 'push'] + s2i_build_targets_list }}"
+    chdir: "{{ s2i_build_repo_dir }}"
+  environment: "{{ s2i_build_environment }}"
+  register: s2i_build_push_result
