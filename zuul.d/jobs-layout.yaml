@@ -1,0 +1,8 @@
+---
+# Minimal RDO github-check wiring so Zuul loads in-repo config from main.
+# Expand with real jobs once webhook/status checks are confirmed.
+- project:
+    name: openstack-k8s-operators/s2i-openstack-containers
+    github-check:
+      jobs:
+        - noop
