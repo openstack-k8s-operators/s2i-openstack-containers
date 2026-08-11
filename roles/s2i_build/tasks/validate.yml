@@ -1,0 +1,53 @@
+---
+- name: Require s2i_build_repo_dir
+  ansible.builtin.assert:
+    that:
+      - s2i_build_repo_dir is string
+      - s2i_build_repo_dir | length > 0
+    fail_msg: >-
+      s2i_build_repo_dir must be set to the s2i-openstack-containers checkout
+      (playbooks resolve it from Zuul; local runs must pass -e s2i_build_repo_dir=...).
+
+- name: Validate s2i_build_action
+  ansible.builtin.assert:
+    that:
+      - s2i_build_action in ['build', 'build-parallel']
+    fail_msg: >-
+      s2i_build_action must be 'build' or 'build-parallel' (got '{{ s2i_build_action }}').
+
+- name: Normalize build targets to a list
+  ansible.builtin.set_fact:
+    s2i_build_targets_list: >-
+      {{
+        s2i_build_targets | list
+        if s2i_build_targets is iterable and s2i_build_targets is not string and s2i_build_targets is not mapping
+        else [s2i_build_targets]
+      }}
+
+- name: Validate build targets
+  ansible.builtin.assert:
+    that:
+      - s2i_build_targets_list | length > 0
+      - s2i_build_targets_list | select('string') | list | length == s2i_build_targets_list | length
+      - s2i_build_targets_list | reject('match', '^(all|base|[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?)$') | list | length == 0
+    fail_msg: >-
+      s2i_build_targets must be a non-empty list of strings matching
+      'all', 'base', '<project>', or '<project>/<image>' (got {{ s2i_build_targets_list }}).
+
+- name: Validate s2i repo checkout
+  ansible.builtin.stat:
+    path: "{{ s2i_build_repo_dir }}/build.sh"
+  register: s2i_build_script
+
+- name: Fail when build.sh is missing
+  ansible.builtin.fail:
+    msg: >-
+      build.sh not found under {{ s2i_build_repo_dir }}.
+      Set s2i_build_repo_dir to the s2i-openstack-containers checkout.
+  when: not s2i_build_script.stat.exists | default(false)
+
+- name: Require build.sh to be a regular file
+  ansible.builtin.assert:
+    that:
+      - s2i_build_script.stat.isreg | default(false)
+    fail_msg: "{{ s2i_build_repo_dir }}/build.sh exists but is not a regular file."

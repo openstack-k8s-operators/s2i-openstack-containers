@@ -1,0 +1,14 @@
+---
+# Project pipeline layout (same pattern as data-plane-adoption).
+# Requires the repo to be listed in review.rdoproject.org config
+# (zuul/rdo.yaml github.com untrusted-projects).
+- project:
+    name: openstack-k8s-operators/s2i-openstack-containers
+    github-check:
+      jobs:
+        - noop
+        - s2i-openstack-containers-tox
+        # First real build exercise: watcher + source overlay via pre.yaml.
+        # Non-voting until the build is proven stable on RDO nodes.
+        - s2i-openstack-containers-build-watcher:
+            voting: false
