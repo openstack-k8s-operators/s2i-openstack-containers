@@ -33,7 +33,7 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
       fi; \
     done
 
-# First build the wheels fro the packages themselves
+# First build the wheels for the packages themselves
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
         pip3 wheel --no-cache-dir --no-deps \
