@@ -1,0 +1,15 @@
+---
+openstack_version:
+  custom_container_images:
+    glance/glance-api:
+      - glanceAPIImage
+    manila/manila-api:
+      - manilaAPIImage
+    manila/manila-scheduler:
+      - manilaSchedulerImage
+    manila/manila-share:
+      - manilaShareImage
+    watcher/watcher-base:
+      - watcherAPIImage
+      - watcherApplierImage
+      - watcherDecisionEngineImage
