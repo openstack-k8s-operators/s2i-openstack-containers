@@ -1,22 +1,8 @@
-#
-#
-#    pip-compile --allow-unsafe --constraint=upper-constraints.txt.master --output-file=requirements.lock.master --strip-extras pythondeps.txt
-#
 crudini==0.9.6
-    # via -r pythondeps.txt
 dumb-init==1.2.5.post1
-    # via -r pythondeps.txt
 iniparse==0.5
-    # via crudini
 pbr==7.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r pythondeps.txt
 six==1.17.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   iniparse
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==82.0.1
-    # via pbr

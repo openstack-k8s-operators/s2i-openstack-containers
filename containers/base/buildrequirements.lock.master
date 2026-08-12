@@ -1,13 +1,8 @@
-#
-#
-#    pybuild-deps compile --no-annotate --output-file=buildrequirements.lock.master requirements.lock.master
-#
-flit-core==3.12.0
 flit-core==4.0.2
 packaging==26.3
 setuptools-scm==10.2.1
 vcs-versioning==2.2.4
-wheel==0.47.0
+wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==82.0.1

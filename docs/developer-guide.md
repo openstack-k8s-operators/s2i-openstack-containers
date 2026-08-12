@@ -253,11 +253,19 @@ Auto-cloned repos in `src/` are cleaned up automatically on exit.
 Pre-existing checkouts in `src/` are used as-is and not removed.
 
 To regenerate lockfiles without updating pinned hashes (steps 1--3 are
-skipped; repos are cloned at the existing pinned hashes instead):
+skipped; repos are cloned at the existing pinned hashes instead), use the
+canonical Python 3.12 environment:
 
 ```bash
-STREAM=master SKIP_HASH_UPDATE=1 ./build.sh update-sources <project-or-all>
+STREAM=master uvx --python 3.12 tox -e update-lockfiles -- <project-or-all>
 ```
+
+Python environment markers are evaluated by the generator interpreter, so
+other Python minor versions can produce a different dependency set. The tox
+environment rejects non-3.12 interpreters and pins the generator tool versions.
+Generated lock headers, resolver annotations, and package-index directives are
+removed because they describe the generation environment rather than the
+resolved dependency set.
 
 ### Building images
 

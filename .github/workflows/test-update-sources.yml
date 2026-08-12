@@ -1,26 +1,35 @@
-name: Tests (update-sources)
+name: Tests (source reproducibility)
 
 on:
   pull_request:
     paths:
+      - .github/actions/setup-tox/action.yml
+      - .github/workflows/test-update-sources.yml
       - build.sh
       - containers/**
+      - tox.ini
       - '!**/OWNERS'
       - '!**/OWNERS_ALIASES'
   push:
     paths:
+      - .github/actions/setup-tox/action.yml
+      - .github/workflows/test-update-sources.yml
       - build.sh
       - containers/**
+      - tox.ini
       - '!**/OWNERS'
       - '!**/OWNERS_ALIASES'
   workflow_dispatch:
 
 jobs:
-  update-sources:
+  update-lockfiles:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup-tox
 
-      - name: Verify update-sources runs successfully
-        run: tox -e update-sources
+      - name: Regenerate from committed source pins
+        run: tox -e update-lockfiles
+
+      - name: Require reproducible generated files
+        run: git diff --exit-code -- containers/

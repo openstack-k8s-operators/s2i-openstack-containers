@@ -1,7 +1,3 @@
-#
-#
-#    pybuild-deps compile --no-annotate --output-file=buildrequirements.lock.master requirements.lock.master
-#
 build==1.5.0
 calver==2025.10.20
 coherent-licensed==0.5.2
