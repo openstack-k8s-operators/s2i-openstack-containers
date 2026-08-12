@@ -103,6 +103,8 @@ DEFAULT_STREAM="${DEFAULT_STREAM:-master}"
 SKIP_HASH_UPDATE="${SKIP_HASH_UPDATE:-}"
 PIP_NO_BINARY="${PIP_NO_BINARY:-}"
 PARALLEL="${PARALLEL:-$(nproc)}"
+SOURCE_REFS_STREAM="${STREAM//\//%2F}"
+SOURCE_REFS_MANIFEST="${REPO_ROOT}/.tmp/source-maintenance/frozen-source-refs.${SOURCE_REFS_STREAM}.tsv"
 
 # Discover all buildable images from the directory structure.
 discover_images() {
@@ -174,14 +176,18 @@ image_tag_args() {
   echo "${args}"
 }
 
-# Track which repos were auto-cloned so we can clean up
+# Track temporary source and frozen-ref repositories so they can be cleaned.
 declare -A _AUTO_CLONED=()
+declare -A _FROZEN_REPOSITORIES=()
 
-# Remove auto-cloned sources on exit
 cleanup_auto() {
-  for src_dir in "${!_AUTO_CLONED[@]}"; do
-    echo "--- Removing auto-cloned source: ${src_dir} ---"
-    rm -rf "${src_dir}"
+  local path
+  for path in "${!_AUTO_CLONED[@]}"; do
+    echo "--- Removing auto-cloned source: ${path} ---"
+    rm -rf "${path}"
+  done
+  for path in "${_FROZEN_REPOSITORIES[@]}"; do
+    rm -rf "${path}"
   done
 }
 trap cleanup_auto EXIT
@@ -441,101 +447,280 @@ resolve_targets() {
   echo "${resolved[@]}"
 }
 
-# Clone a repo at a branch tip (or tag) and store the resolved commit hash
-# in _CLONE_RESULT.  Must NOT be called via command substitution ($(...))
-# because _AUTO_CLONED assignments would be lost in the subshell.
-# If the destination already exists, use it as-is (same policy as clone_at_hash).
-# Args: <dest_dir> <url> <branch>
-clone_at_branch() {
-  local dest="$1"
-  local url="$2"
-  local branch="$3"
-
-  if [[ -d "${dest}" ]]; then
-    echo "--- Using existing source: ${dest} ---"
-  else
-    mkdir -p "$(dirname "${dest}")"
-    echo "--- Cloning ${url} (${branch}) into ${dest} ---"
-    if ! git clone --branch "${branch}" "${url}" "${dest}" 2>/dev/null; then
-      git clone "${url}" "${dest}" 2>/dev/null
-      git -C "${dest}" checkout "${branch}"
-    fi
-    _AUTO_CLONED["${dest}"]=1
+# Resolve an expression without losing failures in command substitutions.
+declare -a _RESOLVED_TARGETS=()
+resolve_targets_array() {
+  local output
+  if ! output=$(resolve_targets "$@"); then
+    return 1
   fi
-
-  _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
+  _RESOLVED_TARGETS=(${output})
 }
 
-# Update pinned hashes in a single sources.txt file for the given stream.
-# Clones source repos at the branch tip to resolve hashes, and extracts
-# upper-constraints.txt when encountered.
-# Args: <sources_file> <stream> <src_dir> <project_dir>
+# Collect selected source manifests in deterministic target order. The parallel
+# arrays describe the manifest, source checkout directory, and project context.
+declare -a _SOURCE_FILES=()
+declare -a _SOURCE_DIRS=()
+declare -a _SOURCE_PROJECT_DIRS=()
+collect_source_scopes() {
+  local -a targets
+  local img project sources_file
+  declare -A seen=()
+
+  resolve_targets_array "$@" || return 1
+  targets=("${_RESOLVED_TARGETS[@]}")
+  _SOURCE_FILES=()
+  _SOURCE_DIRS=()
+  _SOURCE_PROJECT_DIRS=()
+
+  for img in "${targets[@]}"; do
+    project="$(project_name "${img}")"
+    if [[ -z "${project}" ]]; then
+      [[ "${img}" == "base" ]] || continue
+      sources_file="${CONTAINERS_DIR}/base/sources.txt"
+      if [[ -f "${sources_file}" && -z "${seen[${sources_file}]:-}" ]]; then
+        seen["${sources_file}"]=1
+        _SOURCE_FILES+=("${sources_file}")
+        _SOURCE_DIRS+=("${CONTAINERS_DIR}/base/src")
+        _SOURCE_PROJECT_DIRS+=("${CONTAINERS_DIR}/base")
+      fi
+      continue
+    fi
+
+    sources_file="${CONTAINERS_DIR}/${project}/sources.txt"
+    if [[ -f "${sources_file}" && -z "${seen[${sources_file}]:-}" ]]; then
+      seen["${sources_file}"]=1
+      _SOURCE_FILES+=("${sources_file}")
+      _SOURCE_DIRS+=("${CONTAINERS_DIR}/${project}/src")
+      _SOURCE_PROJECT_DIRS+=("${CONTAINERS_DIR}/${project}")
+    fi
+
+    sources_file="${CONTAINERS_DIR}/${img}/sources.txt"
+    if [[ -f "${sources_file}" && -z "${seen[${sources_file}]:-}" ]]; then
+      seen["${sources_file}"]=1
+      _SOURCE_FILES+=("${sources_file}")
+      _SOURCE_DIRS+=("${CONTAINERS_DIR}/${img}/src")
+      _SOURCE_PROJECT_DIRS+=("${CONTAINERS_DIR}/${project}")
+    fi
+  done
+}
+
+source_record_key() {
+  printf '%s\x1f%s\x1f%s\x1f%s' "$1" "$2" "$3" "$4"
+}
+
+source_ref_key() {
+  printf '%s\x1f%s' "$1" "$2"
+}
+
+declare -A _FROZEN_COMMITS=()
+declare -A _FROZEN_AUTHORITIES=()
+declare -A _FROZEN_REF_COMMITS=()
+
+# Fetch one declared ref into a temporary bare repository and retain its exact
+# commit for the rest of this process. This prevents a moving branch from
+# changing inputs after preflight.
+freeze_remote_ref() {
+  local url="$1"
+  local ref="$2"
+  local ref_key repository
+  ref_key="$(source_ref_key "${url}" "${ref}")"
+  if [[ -n "${_FROZEN_REF_COMMITS[${ref_key}]:-}" ]]; then
+    _FREEZE_RESULT="${_FROZEN_REF_COMMITS[${ref_key}]}"
+    return
+  fi
+
+  repository=$(mktemp -d)
+  git -C "${repository}" init --quiet --bare
+  if ! git -C "${repository}" fetch --quiet "${url}" "${ref}"; then
+    echo "ERROR: Could not freeze ref '${ref}' for ${url}" >&2
+    rm -rf "${repository}"
+    return 1
+  fi
+  if ! _FREEZE_RESULT=$(git -C "${repository}" rev-parse --verify 'FETCH_HEAD^{commit}'); then
+    echo "ERROR: Ref '${ref}' for ${url} does not resolve to a commit" >&2
+    rm -rf "${repository}"
+    return 1
+  fi
+  _FROZEN_REF_COMMITS["${ref_key}"]="${_FREEZE_RESULT}"
+  _FROZEN_REPOSITORIES["${ref_key}"]="${repository}"
+}
+
+validate_stream_name() {
+  local stream="$1"
+  local component
+  local -a components
+  if [[ ! "${stream}" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || \
+     [[ "${stream}" == */ || "${stream}" == *//* ]]; then
+    echo "ERROR: Unsafe stream name '${stream}'" >&2
+    return 1
+  fi
+  IFS='/' read -ra components <<< "${stream}"
+  for component in "${components[@]}"; do
+    if [[ "${component}" == "." || "${component}" == ".." ]]; then
+      echo "ERROR: Unsafe stream name '${stream}'" >&2
+      return 1
+    fi
+  done
+}
+
+# Resolve and record every selected source before the first tracked mutation.
+freeze_source_refs() {
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
+  local manifest_dir manifest_tmp
+  local index line entry_stream name url branch pinned_hash extra
+  local sources_file src_dir relative_file record_key authority frozen
+
+  validate_stream_name "${stream}" || return 1
+  collect_source_scopes "${targets_args[@]}" || return 1
+  _FROZEN_COMMITS=()
+  _FROZEN_AUTHORITIES=()
+  _FROZEN_REF_COMMITS=()
+  _FROZEN_REPOSITORIES=()
+
+  manifest_dir="$(dirname "${SOURCE_REFS_MANIFEST}")"
+  if [[ "${manifest_dir}" != "${REPO_ROOT}/.tmp/source-maintenance" ]]; then
+    echo "ERROR: Frozen source manifest escaped repository temporary state" >&2
+    return 1
+  fi
+  mkdir -p "${manifest_dir}"
+  rm -f "${SOURCE_REFS_MANIFEST}"
+  manifest_tmp=$(mktemp "${manifest_dir}/.frozen-source-refs.XXXXXX")
+  printf 'source_file\tstream\tname\turl\tdeclared_ref\tcommitted_pin\tfrozen_commit\tauthority\n' > "${manifest_tmp}"
+
+  for index in "${!_SOURCE_FILES[@]}"; do
+    sources_file="${_SOURCE_FILES[${index}]}"
+    src_dir="${_SOURCE_DIRS[${index}]}"
+    relative_file="${sources_file#"${REPO_ROOT}/"}"
+    while IFS= read -r line; do
+      [[ -z "${line}" || "${line}" == \#* ]] && continue
+      read -r entry_stream name url branch pinned_hash extra <<< "${line}"
+      [[ "${entry_stream}" == "${stream}" ]] || continue
+      if [[ -z "${name}" || -z "${url}" || -z "${branch}" || -z "${pinned_hash}" || -n "${extra:-}" ]]; then
+        echo "ERROR: Malformed source record in ${relative_file}: ${line}" >&2
+        rm -f "${manifest_tmp}"
+        return 1
+      fi
+
+      record_key="$(source_record_key "${sources_file}" "${name}" "${url}" "${branch}")"
+      if [[ "${name}" != "upper-constraints" && -d "${src_dir}/${name}" ]]; then
+        local checkout_root
+        checkout_root=$(git -C "${src_dir}/${name}" rev-parse --show-toplevel 2>/dev/null || true)
+        if [[ -z "${checkout_root}" || "$(realpath -e "${checkout_root}")" != "$(realpath -e "${src_dir}/${name}")" ]] || \
+           ! frozen=$(git -C "${src_dir}/${name}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null); then
+          echo "ERROR: Pre-existing source is not a Git checkout: ${src_dir}/${name}" >&2
+          rm -f "${manifest_tmp}"
+          return 1
+        fi
+        authority="pre-existing-checkout"
+      else
+        if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
+          freeze_remote_ref "${url}" "${pinned_hash}" || {
+            rm -f "${manifest_tmp}"
+            return 1
+          }
+          authority="committed-pin"
+        else
+          freeze_remote_ref "${url}" "${branch}" || {
+            rm -f "${manifest_tmp}"
+            return 1
+          }
+          authority="declared-ref"
+        fi
+        frozen="${_FREEZE_RESULT}"
+      fi
+
+      _FROZEN_COMMITS["${record_key}"]="${frozen}"
+      _FROZEN_AUTHORITIES["${record_key}"]="${authority}"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "${relative_file}" "${entry_stream}" "${name}" "${url}" \
+        "${branch}" "${pinned_hash}" "${frozen}" "${authority}" \
+        >> "${manifest_tmp}"
+    done < "${sources_file}"
+  done
+
+  mv "${manifest_tmp}" "${SOURCE_REFS_MANIFEST}"
+  echo "--- Frozen source references: ${SOURCE_REFS_MANIFEST} ---"
+}
+
+# Materialize one source declaration from its frozen preflight repository and
+# update its maintained pin only in advancement mode.
 update_sources_file() {
   local sources_file="$1"
   local stream="$2"
   local src_dir="$3"
   local project_dir="$4"
-
-  if [[ ! -f "${sources_file}" ]]; then
-    return
-  fi
-
-  local tmp_file
-  tmp_file=$(mktemp)
+  local tmp_file line entry_stream name url branch pinned_hash extra
+  local record_key ref_key frozen authority repository output_tmp
   local updated=0
 
+  tmp_file=$(mktemp)
   while IFS= read -r line; do
-    # Preserve comments and blank lines
     if [[ -z "${line}" || "${line}" == \#* ]]; then
       echo "${line}" >> "${tmp_file}"
       continue
     fi
 
-    read -r entry_stream name url branch pinned_hash <<< "${line}"
-
-    # Only update entries for the requested stream
+    read -r entry_stream name url branch pinned_hash extra <<< "${line}"
     if [[ "${entry_stream}" != "${stream}" ]]; then
       echo "${line}" >> "${tmp_file}"
       continue
     fi
 
-    local new_hash
-    if [[ "${name}" == "upper-constraints" ]]; then
-      # Clone without checkout, resolve hash from branch, extract file
-      local uc_tmp
-      uc_tmp=$(mktemp -d)
-      git clone --no-checkout "${url}" "${uc_tmp}" 2>/dev/null
-      new_hash=$(git -C "${uc_tmp}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-        || git -C "${uc_tmp}" rev-parse --verify "${branch}" 2>/dev/null)
-      git -C "${uc_tmp}" checkout "${new_hash}" -- upper-constraints.txt
-      cp "${uc_tmp}/upper-constraints.txt" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
-      rm -rf "${uc_tmp}"
-    elif [[ -d "${src_dir}/${name}" ]]; then
-      # Pre-existing checkout — use it for pip-compile but don't update the hash
-      echo "  ${name}: skipped (pre-existing checkout at ${src_dir}/${name})"
-      new_hash="${pinned_hash}"
-    else
-      clone_at_branch "${src_dir}/${name}" "${url}" "${branch}"
-      new_hash="${_CLONE_RESULT}"
-    fi
-
-    if [[ -z "${new_hash}" ]]; then
-      echo "ERROR: Could not resolve ref '${branch}' for ${url}" >&2
-      rm "${tmp_file}"
+    record_key="$(source_record_key "${sources_file}" "${name}" "${url}" "${branch}")"
+    frozen="${_FROZEN_COMMITS[${record_key}]:-}"
+    authority="${_FROZEN_AUTHORITIES[${record_key}]:-}"
+    if [[ -z "${frozen}" || -z "${authority}" ]]; then
+      echo "ERROR: Missing frozen source record for ${name} in ${sources_file}" >&2
+      rm -f "${tmp_file}"
       return 1
     fi
 
-    if [[ "${new_hash}" != "${pinned_hash}" ]]; then
-      echo "  ${name}: ${pinned_hash:-<empty>} → ${new_hash} (${branch})"
+    if [[ "${authority}" == "pre-existing-checkout" ]]; then
+      echo "  ${name}: skipped (pre-existing checkout at ${src_dir}/${name})"
+    else
+      if [[ "${authority}" == "committed-pin" ]]; then
+        ref_key="$(source_ref_key "${url}" "${pinned_hash}")"
+      else
+        ref_key="$(source_ref_key "${url}" "${branch}")"
+      fi
+      repository="${_FROZEN_REPOSITORIES[${ref_key}]:-}"
+      if [[ -z "${repository}" || ! -d "${repository}" ]]; then
+        echo "ERROR: Missing frozen repository for ${name}" >&2
+        rm -f "${tmp_file}"
+        return 1
+      fi
+
+      if [[ "${name}" == "upper-constraints" ]]; then
+        output_tmp=$(mktemp "${project_dir}/.${UPSTREAM_CONSTRAINTS}.${stream}.XXXXXX")
+        if ! git -C "${repository}" show "${frozen}:upper-constraints.txt" > "${output_tmp}"; then
+          rm -f "${output_tmp}" "${tmp_file}"
+          return 1
+        fi
+        mv "${output_tmp}" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
+      else
+        mkdir -p "${src_dir}"
+        echo "--- Materializing ${url} at ${frozen} into ${src_dir}/${name} ---"
+        git -C "${src_dir}" init --quiet "${name}"
+        _AUTO_CLONED["${src_dir}/${name}"]=1
+        git -C "${src_dir}/${name}" fetch --quiet "${repository}" "${frozen}"
+        git -C "${src_dir}/${name}" checkout --quiet --detach FETCH_HEAD
+      fi
+    fi
+
+    if [[ -z "${SKIP_HASH_UPDATE}" && "${authority}" != "pre-existing-checkout" && "${frozen}" != "${pinned_hash}" ]]; then
+      echo "  ${name}: ${pinned_hash} → ${frozen} (${branch})"
+      pinned_hash="${frozen}"
       updated=1
     fi
-    echo "${entry_stream} ${name} ${url} ${branch} ${new_hash}" >> "${tmp_file}"
+    echo "${entry_stream} ${name} ${url} ${branch} ${pinned_hash}" >> "${tmp_file}"
   done < "${sources_file}"
 
   if [[ ${updated} -eq 1 ]]; then
     install -m 644 "${tmp_file}" "${sources_file}"
   else
-    echo "  (no changes)"
+    echo "  (no pin changes)"
   fi
   rm "${tmp_file}"
 }
@@ -920,71 +1105,30 @@ ensure_sources_for_targets() {
   done
 }
 
-# Update sources.txt files for targets in scope.
-# Clones source repos at branch tips to resolve hashes, fetches
-# upper-constraints.txt, and updates pinned hashes in sources.txt.
+# Materialize all preflight-frozen sources and update maintained pins only when
+# SKIP_HASH_UPDATE is unset.
 update_sources() {
   local stream="${!#}"
-  local targets_args=("${@:1:$#-1}")
+  local index sources_file
 
   if [[ -z "${stream}" ]]; then
     echo "ERROR: STREAM is required for update-sources." >&2
     echo "       Example: STREAM=master ./build.sh update-sources watcher" >&2
     return 1
   fi
+  if [[ ${#_SOURCE_FILES[@]} -eq 0 ]]; then
+    echo "ERROR: Source preflight did not collect any manifests" >&2
+    return 1
+  fi
 
-  local targets
-  targets=($(resolve_targets "${targets_args[@]}"))
-
-  declare -A projects_seen
-
-  for img in "${targets[@]}"; do
-    local project
-    project="$(project_name "${img}")"
-
-    # Base container: flat layout, sources.txt directly in containers/base/
-    if [[ -z "${project}" ]]; then
-      if [[ "${img}" == "base" ]] && [[ -z "${projects_seen[base]:-}" ]]; then
-        projects_seen["base"]=1
-        local base_sources="${CONTAINERS_DIR}/base/sources.txt"
-        if [[ -f "${base_sources}" ]]; then
-          echo "--- Updating ${base_sources} (stream: ${stream}) ---"
-          if ! update_sources_file "${base_sources}" "${stream}" \
-                "${CONTAINERS_DIR}/base/src" \
-                "${CONTAINERS_DIR}/base"; then
-            echo "ERROR: Failed to update ${base_sources}" >&2
-            return 1
-          fi
-        fi
-      fi
-      continue
-    fi
-
-    # Project-level sources.txt (only process once per project)
-    if [[ -z "${projects_seen[$project]:-}" ]]; then
-      projects_seen["${project}"]=1
-      local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
-      if [[ -f "${project_sources}" ]]; then
-        echo "--- Updating ${project_sources} (stream: ${stream}) ---"
-        if ! update_sources_file "${project_sources}" "${stream}" \
-              "${CONTAINERS_DIR}/${project}/src" \
-              "${CONTAINERS_DIR}/${project}"; then
-          echo "ERROR: Failed to update ${project_sources}" >&2
-          return 1
-        fi
-      fi
-    fi
-
-    # Image-level sources.txt
-    local image_sources="${CONTAINERS_DIR}/${img}/sources.txt"
-    if [[ -f "${image_sources}" ]]; then
-      echo "--- Updating ${image_sources} (stream: ${stream}) ---"
-      if ! update_sources_file "${image_sources}" "${stream}" \
-            "${CONTAINERS_DIR}/${img}/src" \
-            "${CONTAINERS_DIR}/${project}"; then
-        echo "ERROR: Failed to update ${image_sources}" >&2
-        return 1
-      fi
+  for index in "${!_SOURCE_FILES[@]}"; do
+    sources_file="${_SOURCE_FILES[${index}]}"
+    echo "--- Updating ${sources_file} (stream: ${stream}) ---"
+    if ! update_sources_file "${sources_file}" "${stream}" \
+          "${_SOURCE_DIRS[${index}]}" \
+          "${_SOURCE_PROJECT_DIRS[${index}]}"; then
+      echo "ERROR: Failed to update ${sources_file}" >&2
+      return 1
     fi
   done
 }
@@ -1104,10 +1248,9 @@ case "${ACTION}" in
   update-sources)
     if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
       echo "=== Skipping hash update (SKIP_HASH_UPDATE is set) ==="
-      ensure_sources_for_targets "${TARGETS[@]}" "${STREAM}"
-    else
-      update_sources "${TARGETS[@]}" "${STREAM}"
     fi
+    freeze_source_refs "${TARGETS[@]}" "${STREAM}"
+    update_sources "${TARGETS[@]}" "${STREAM}"
 
     # Generate lockfiles and metadata
     echo ""

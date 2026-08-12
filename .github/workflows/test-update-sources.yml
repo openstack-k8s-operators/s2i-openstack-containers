@@ -33,3 +33,11 @@ jobs:
 
       - name: Require reproducible generated files
         run: git diff --exit-code -- containers/
+
+      - name: Preserve frozen source references
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frozen-source-refs
+          path: .tmp/source-maintenance/frozen-source-refs.master.tsv
+          if-no-files-found: ignore

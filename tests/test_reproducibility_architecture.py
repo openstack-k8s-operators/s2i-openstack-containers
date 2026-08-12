@@ -28,7 +28,7 @@ class ReproducibilityArchitectureTest(unittest.TestCase):
 
         self.assertIn("tox -e update-lockfiles", workflow)
         self.assertIn("git diff --exit-code -- containers/", workflow)
-        self.assertNotIn("frozen-source-refs", workflow)
+        self.assertIn("frozen-source-refs.master.tsv", workflow)
         self.assertNotIn("tox -e update-sources", workflow)
 
     def test_github_workflows_use_canonical_python(self):
