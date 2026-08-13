@@ -1,0 +1,60 @@
+contentOrigin:
+  repofiles:
+    - ./rpms.repo
+context:
+  bare: true
+
+#
+# To update rpms.lock.yaml:
+#    rpm-lockfile-prototype rpms.in.yaml
+#
+
+arches:
+  - x86_64
+  - aarch64
+
+packages:
+  - cargo
+  - ceph-common
+  - device-mapper-multipath
+  - e2fsprogs
+  - gcc
+  - gcc-c++
+  - git-core
+  - httpd
+  - iscsi-initiator-utils
+  - libffi-devel
+  - libosinfo
+  - libvirt-client
+  - libvirt-daemon-driver-nodedev
+  - libvirt-daemon-driver-nwfilter
+  - libvirt-daemon-driver-qemu
+  - libvirt-daemon-driver-secret
+  - libvirt-daemon-driver-storage-core
+  - libxml2-devel
+  - libxslt-devel
+  - mod_ssl
+  - nfs-utils
+  - nmap-ncat
+  - novnc
+  - nvme-cli
+  - openssh-clients
+  - openssl-devel
+  - openvswitch
+  - python3
+  - python3-cryptography
+  - python3-devel
+  - python3-libvirt
+  - python3-mod_wsgi
+  - python3-pip
+  - python3-setuptools
+  - qemu-kvm-block-rbd
+  - qemu-kvm-core
+  - qemu-kvm-device-display-virtio-gpu
+  - rsync
+  - rust
+  - swtpm
+  - swtpm-tools
+  - targetcli
+  - xfsprogs
+  - xorriso

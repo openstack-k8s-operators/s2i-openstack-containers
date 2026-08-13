@@ -1,0 +1,5 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+# Caching backend (dogpile extra for oslo.cache) — keystonemiddleware token
+# caching
+oslo.cache[dogpile]

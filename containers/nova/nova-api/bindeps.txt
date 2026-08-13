@@ -1,0 +1,10 @@
+python3
+python3-pip
+# Provided by RPM instead of pip (cryptography 49.0.0 from CentOS 10 Stream).
+
+python3-cryptography
+# WSGI serving — nova removed its own console-script WSGI binaries upstream,
+# served via Apache+mod_wsgi like every other API image in this repo
+httpd
+mod_ssl
+python3-mod_wsgi
