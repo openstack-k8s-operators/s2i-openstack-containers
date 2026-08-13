@@ -1,0 +1,16 @@
+#!/usr/bin/python3 -sP
+# WSGI script for OpenStack Horizon Dashboard
+
+import os
+import sys
+
+# Add horizon to Python path
+sys.path.insert(0, '/usr/share/openstack-dashboard')
+sys.path.insert(0, '/usr/lib/python3.12/site-packages')
+
+# Set Django settings module
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'openstack_dashboard.settings')
+
+# Import Django WSGI application
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()

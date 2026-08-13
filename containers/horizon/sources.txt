@@ -1,0 +1,2 @@
+master upper-constraints https://opendev.org/openstack/requirements.git master ddab97be8a4c5fe248db071fde9013ba530d7f72
+master horizon https://opendev.org/openstack/horizon.git master HEAD

@@ -1,0 +1,12 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+# Django framework extras
+Django
+# Memcached client for session caching
+python-memcached
+# OpenStack client libraries
+python-keystoneclient
+python-novaclient
+python-glanceclient
+python-cinderclient
+python-neutronclient
