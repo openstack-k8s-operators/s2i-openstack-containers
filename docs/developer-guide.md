@@ -241,23 +241,42 @@ STREAM=master ./build.sh update-sources <project-or-all>
 ```
 
 This will:
-1. Clone each source repo at the branch tip to resolve the latest commit hash.
-2. Update `sources.txt` with the new pinned hashes.
-3. Fetch `upper-constraints.txt` from the requirements repo.
+1. Resolve every selected branch or tag to one exact commit before mutation.
+2. Update `sources.txt` with the frozen commits.
+3. Fetch `upper-constraints.txt` from the same frozen input set.
 4. Generate `rpms.in.yaml` from all `bindeps.txt` + `builddeps.txt` files.
 5. Run `pip-compile` to generate `requirements.lock.<stream>`.
 6. Run `pybuild-deps compile` to generate `buildrequirements.lock.<stream>`.
 7. Create default-stream symlinks if `STREAM == DEFAULT_STREAM`.
 
-Auto-cloned repos in `src/` are cleaned up automatically on exit.
-Pre-existing checkouts in `src/` are used as-is and not removed.
+The preflight record is written to
+`.tmp/source-maintenance/frozen-source-refs.<stream>.tsv`. It records each
+source manifest, declared ref, committed pin, frozen commit, and authority.
+Advancing runs use `declared-ref`; pinned runs use `committed-pin`; intentional
+Git checkouts already under `src/` use `pre-existing-checkout`. A slash in a
+stream name is encoded as `%2F`, and unsafe stream names are rejected before
+filesystem mutation.
+
+All selected records must pass preflight before a tracked source manifest is
+changed. The fetched repositories are retained for the complete run so a moving
+branch cannot provide different content after preflight. Auto-created source
+checkouts are cleaned up on exit. Pre-existing checkouts are used as-is and are
+not removed.
 
 To regenerate lockfiles without updating pinned hashes (steps 1--3 are
-skipped; repos are cloned at the existing pinned hashes instead):
+skipped; repos are cloned at the existing pinned hashes instead), use the
+canonical Python 3.12 environment:
 
 ```bash
-STREAM=master SKIP_HASH_UPDATE=1 ./build.sh update-sources <project-or-all>
+STREAM=master uvx --python 3.12 tox -e update-lockfiles -- <project-or-all>
 ```
+
+Python environment markers are evaluated by the generator interpreter, so
+other Python minor versions can produce a different dependency set. The tox
+environment rejects non-3.12 interpreters and pins the generator tool versions.
+Generated lock headers, resolver annotations, and package-index directives are
+removed because they describe the generation environment rather than the
+resolved dependency set.
 
 ### Building images
 
