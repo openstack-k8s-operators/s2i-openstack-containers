@@ -1,995 +1,148 @@
-#
-#
-#    pip-compile --allow-unsafe --constraint=upper-constraints.txt.master --output-file=requirements.lock.master --strip-extras src/barbican-tempest-plugin/requirements.txt src/cinder-tempest-plugin/requirements.txt src/cloudkitty-tempest-plugin/requirements.txt src/cyborg-tempest-plugin/requirements.txt src/designate-tempest-plugin/requirements.txt src/glance-tempest-plugin/requirements.txt src/heat-tempest-plugin/requirements.txt src/ironic-tempest-plugin/requirements.txt src/keystone-tempest-plugin/requirements.txt src/manila-tempest-plugin/requirements.txt src/networking-l2gw-tempest-plugin/requirements.txt src/neutron-tempest-plugin/requirements.txt src/octavia-tempest-plugin/requirements.txt src/python-tempestconf/requirements.txt src/telemetry-tempest-plugin/requirements.txt src/tempest/requirements.txt src/watcher-tempest-plugin/requirements.txt tempest/pythonbuilddeps.txt tempest/pythondeps.txt
-#
 alembic==1.18.5
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-db
 amqp==5.3.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   kombu
-    #   oslo-messaging
 anyio==4.14.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   httpx
 attrs==26.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   referencing
 autopage==0.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cliff
 babel==2.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/networking-l2gw-tempest-plugin/requirements.txt
 barbican-tempest-plugin==4.5.0
-    # via -r src/manila-tempest-plugin/requirements.txt
 bcrypt==5.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
-    #   paramiko
 cachetools==7.1.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 certifi==2026.7.22
-    # via
-    #   gabbi
-    #   httpcore
-    #   httpx
-    #   requests
 cffi==2.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cryptography
-    #   pynacl
 charset-normalizer==3.4.7
-    # via
-    #   -c upper-constraints.txt.master
-    #   requests
 cliff==4.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   gnocchiclient
-    #   osc-lib
-    #   python-barbicanclient
-    #   python-heatclient
-    #   python-neutronclient
-    #   python-openstackclient
-    #   stestr
-    #   tempest
 cmd2==4.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cliff
 colorama==0.4.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   gabbi
 cryptography==43.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/barbican-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   barbican-tempest-plugin
-    #   openstacksdk
-    #   paramiko
-    #   pyopenssl
-    #   python-openstackclient
-    #   tempest
 ddt==1.7.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/manila-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
 debtcollector==3.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   futurist
-    #   gnocchiclient
-    #   neutron-lib
-    #   oslo-concurrency
-    #   oslo-db
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-service
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   tempest
 decorator==5.3.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   dogpile-cache
-    #   openstacksdk
 defusedxml==0.7.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   tempest
 dnspython==2.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/designate-tempest-plugin/requirements.txt
-    #   eventlet
 dogpile-cache==1.5.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
-    #   os-collect-config
 eventlet==0.41.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   os-ken
-    #   oslo-service
 fasteners==0.20
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   oslo-concurrency
-    #   tempest
 fixtures==4.3.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   oslotest
-    #   ovsdbapp
-    #   stestr
-    #   tempest
 futurist==3.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gnocchiclient
-    #   oslo-messaging
 gabbi==4.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
 gnocchiclient==7.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
 greenlet==3.5.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   eventlet
-    #   oslo-service
-    #   sqlalchemy
 h11==0.16.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   httpcore
 h2==4.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   httpx
 hpack==4.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   h2
 httpcore==1.0.9
-    # via
-    #   -c upper-constraints.txt.master
-    #   httpx
 httpx==0.28.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   gabbi
 hyperframe==6.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   h2
 idna==3.18
-    # via
-    #   -c upper-constraints.txt.master
-    #   anyio
-    #   httpx
-    #   requests
 iniconfig==2.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   pytest
 invoke==3.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   paramiko
 iso8601==2.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gnocchiclient
-    #   keystoneauth1
-    #   openstacksdk
-    #   oslo-utils
-    #   python-heatclient
-    #   python-novaclient
-    #   python-openstackclient
-    #   python-subunit
 jinja2==3.1.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
 jmespath==1.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 jsonpatch==1.33
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 jsonpath-ng==1.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gabbi
 jsonpointer==3.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonpatch
 jsonschema==4.26.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   python-zaqarclient
-    #   tempest
 jsonschema-specifications==2025.9.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
 keystoneauth1==5.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   gnocchiclient
-    #   neutron-lib
-    #   openstacksdk
-    #   osc-lib
-    #   python-barbicanclient
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-novaclient
-    #   python-zaqarclient
 kombu==5.6.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   oslo-messaging
 lxml==6.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   ncclient
-    #   os-collect-config
 mako==1.3.12
-    # via
-    #   -c upper-constraints.txt.master
-    #   alembic
-    #   pecan
 markdown-it-py==4.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   rich
 markupsafe==3.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   jinja2
-    #   mako
 mdurl==0.1.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   markdown-it-py
 msgpack==1.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   os-ken
-    #   oslo-serialization
 ncclient==0.7.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   os-ken
 netaddr==1.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   neutron-lib
-    #   os-ken
-    #   oslo-config
-    #   oslo-utils
-    #   oslo-versionedobjects
-    #   osprofiler
-    #   ovsdbapp
-    #   python-neutronclient
-    #   tempest
 neutron-lib==4.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/networking-l2gw-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
 openstacksdk==4.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/python-tempestconf/requirements.txt
-    #   osc-lib
-    #   python-neutronclient
-    #   python-openstackclient
 os-collect-config==14.0.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
 os-ken==4.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   neutron-lib
 os-service-types==1.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   keystoneauth1
-    #   openstacksdk
 os-testr==3.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r tempest/pythondeps.txt
 os-traits==3.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/watcher-tempest-plugin/requirements.txt
-    #   neutron-lib
 osc-lib==4.7.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   python-heatclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-openstackclient
-    #   python-zaqarclient
 oslo-concurrency==7.6.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   neutron-lib
-    #   oslo-service
-    #   osprofiler
-    #   tempest
 oslo-config==10.7.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/barbican-tempest-plugin/requirements.txt
-    #   -r src/cinder-tempest-plugin/requirements.txt
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/glance-tempest-plugin/requirements.txt
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/python-tempestconf/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   barbican-tempest-plugin
-    #   neutron-lib
-    #   os-collect-config
-    #   os-ken
-    #   oslo-concurrency
-    #   oslo-db
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-service
-    #   oslo-versionedobjects
-    #   osprofiler
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   tempest
 oslo-context==6.5.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-versionedobjects
 oslo-db==18.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 oslo-i18n==6.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
-    #   osc-lib
-    #   oslo-concurrency
-    #   oslo-config
-    #   oslo-db
-    #   oslo-log
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-service
-    #   oslo-utils
-    #   oslo-versionedobjects
-    #   python-barbicanclient
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-neutronclient
-    #   python-novaclient
-    #   python-openstackclient
-    #   python-zaqarclient
 oslo-log==8.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/manila-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   -r src/watcher-tempest-plugin/requirements.txt
-    #   neutron-lib
-    #   os-collect-config
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-service
-    #   oslo-versionedobjects
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-zaqarclient
-    #   tempest
 oslo-messaging==18.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   neutron-lib
-    #   oslo-versionedobjects
 oslo-metrics==0.16.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 oslo-middleware==8.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 oslo-policy==6.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 oslo-serialization==5.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cinder-tempest-plugin/requirements.txt
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/designate-tempest-plugin/requirements.txt
-    #   -r src/glance-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   neutron-lib
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-policy
-    #   osprofiler
-    #   python-barbicanclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-novaclient
-    #   tempest
 oslo-service==4.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
-    #   oslo-messaging
 oslo-utils==10.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/barbican-tempest-plugin/requirements.txt
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/designate-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   -r src/watcher-tempest-plugin/requirements.txt
-    #   neutron-lib
-    #   osc-lib
-    #   oslo-concurrency
-    #   oslo-db
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-serialization
-    #   oslo-service
-    #   oslo-versionedobjects
-    #   osprofiler
-    #   python-barbicanclient
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-novaclient
-    #   python-zaqarclient
-    #   tempest
 oslo-versionedobjects==3.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 oslotest==6.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/octavia-tempest-plugin/requirements.txt
 osprofiler==4.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 ovs==3.7.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   os-ken
-    #   ovsdbapp
 ovsdbapp==2.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/networking-l2gw-tempest-plugin/requirements.txt
 packaging==26.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   kombu
-    #   os-ken
-    #   oslo-utils
-    #   pytest
-    #   python-keystoneclient
-    #   wheel
 paramiko==4.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   ncclient
-    #   tempest
 paste==3.10.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 pastedeploy==3.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 pbr==7.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/barbican-tempest-plugin/requirements.txt
-    #   -r src/cinder-tempest-plugin/requirements.txt
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/glance-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/manila-tempest-plugin/requirements.txt
-    #   -r src/networking-l2gw-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/python-tempestconf/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   -r src/watcher-tempest-plugin/requirements.txt
-    #   -r tempest/pythonbuilddeps.txt
-    #   barbican-tempest-plugin
-    #   neutron-lib
-    #   openstacksdk
-    #   os-collect-config
-    #   os-ken
-    #   os-service-types
-    #   os-testr
-    #   os-traits
-    #   osc-lib
-    #   oslo-concurrency
-    #   oslo-context
-    #   oslo-i18n
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-utils
-    #   ovsdbapp
-    #   python-barbicanclient
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-novaclient
-    #   python-zaqarclient
-    #   tempest
 pecan==1.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 platformdirs==4.10.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 pluggy==1.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   pytest
 prettytable==3.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   cliff
-    #   osprofiler
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-manilaclient
-    #   python-novaclient
-    #   tempest
 prometheus-client==0.25.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-metrics
 prompt-toolkit==3.0.52
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 psutil==7.2.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
-    #   oslo-utils
 pycparser==3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cffi
 pygments==2.20.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   pytest
-    #   rich
 pynacl==1.6.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   paramiko
 pyopenssl==24.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/octavia-tempest-plugin/requirements.txt
 pyparsing==3.3.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-utils
 pyperclip==1.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 pytest==9.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   gabbi
 python-barbicanclient==7.5.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/octavia-tempest-plugin/requirements.txt
 python-cinderclient==9.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
 python-dateutil==2.9.0.post0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   gnocchiclient
-    #   oslo-log
 python-heatclient==5.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   os-collect-config
 python-keystoneclient==5.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   os-collect-config
-    #   python-neutronclient
-    #   python-openstackclient
 python-manilaclient==6.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   python-openstackclient
 python-neutronclient==13.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/networking-l2gw-tempest-plugin/requirements.txt
 python-novaclient==18.13.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
 python-openstackclient==10.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r tempest/pythondeps.txt
 python-subunit==1.4.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   os-testr
-    #   stestr
-    #   tempest
 python-swiftclient==4.10.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   python-heatclient
 python-zaqarclient==4.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   os-collect-config
 pyyaml==6.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/python-tempestconf/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   cliff
-    #   gabbi
-    #   openstacksdk
-    #   oslo-config
-    #   oslo-messaging
-    #   oslo-policy
-    #   oslo-utils
-    #   python-heatclient
-    #   python-subunit
-    #   stestr
-    #   tempest
 referencing==0.37.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   jsonschema-specifications
 repoze-lru==0.8
-    # via
-    #   -c upper-constraints.txt.master
-    #   routes
 requests==2.34.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/python-tempestconf/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   keystoneauth1
-    #   os-collect-config
-    #   osc-lib
-    #   oslo-config
-    #   oslo-policy
-    #   osprofiler
-    #   python-barbicanclient
-    #   python-cinderclient
-    #   python-heatclient
-    #   python-keystoneclient
-    #   python-manilaclient
-    #   python-neutronclient
-    #   python-openstackclient
-    #   python-swiftclient
-    #   python-zaqarclient
 rfc3986==2.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-config
 rich==15.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
-    #   rich-argparse
 rich-argparse==1.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 routes==2.5.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   os-ken
-    #   oslo-service
 rpds-py==2026.5.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   referencing
 setproctitle==1.3.7
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
 six==1.17.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/python-tempestconf/requirements.txt
-    #   python-dateutil
-    #   routes
 sortedcontainers==2.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   ovs
 sqlalchemy==2.0.51
-    # via
-    #   -c upper-constraints.txt.master
-    #   alembic
-    #   neutron-lib
-    #   oslo-db
 statsd==4.0.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
 stestr==4.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   tempest
 stevedore==5.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   cliff
-    #   dogpile-cache
-    #   keystoneauth1
-    #   neutron-lib
-    #   osc-lib
-    #   oslo-config
-    #   oslo-db
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-policy
-    #   python-cinderclient
-    #   python-keystoneclient
-    #   python-novaclient
-    #   python-openstackclient
-    #   python-zaqarclient
-    #   tempest
 tempest==46.3.0
-    # via
-    #   -r src/barbican-tempest-plugin/requirements.txt
-    #   -r src/cinder-tempest-plugin/requirements.txt
-    #   -r src/cloudkitty-tempest-plugin/requirements.txt
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/designate-tempest-plugin/requirements.txt
-    #   -r src/glance-tempest-plugin/requirements.txt
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/ironic-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/manila-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/python-tempestconf/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   -r src/watcher-tempest-plugin/requirements.txt
-    #   barbican-tempest-plugin
 tenacity==9.1.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/python-tempestconf/requirements.txt
 testresources==2.1.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-db
 testscenarios==0.6.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   oslo-db
-    #   tempest
 testtools==2.9.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/cyborg-tempest-plugin/requirements.txt
-    #   -r src/designate-tempest-plugin/requirements.txt
-    #   -r src/heat-tempest-plugin/requirements.txt
-    #   -r src/keystone-tempest-plugin/requirements.txt
-    #   -r src/neutron-tempest-plugin/requirements.txt
-    #   -r src/octavia-tempest-plugin/requirements.txt
-    #   -r src/telemetry-tempest-plugin/requirements.txt
-    #   -r src/tempest/requirements.txt
-    #   os-testr
-    #   oslotest
-    #   python-subunit
-    #   stestr
-    #   tempest
 tomlkit==0.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   stestr
 typing-extensions==4.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   alembic
-    #   anyio
-    #   keystoneauth1
-    #   os-service-types
-    #   oslo-context
-    #   oslo-middleware
-    #   referencing
-    #   sqlalchemy
 tzdata==2026.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   kombu
 ujson==5.13.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gnocchiclient
 urllib3==2.7.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/tempest/requirements.txt
-    #   requests
-    #   tempest
 vine==5.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   amqp
-    #   kombu
 voluptuous==0.16.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   stestr
 wcwidth==0.8.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   prettytable
-    #   prompt-toolkit
 webob==1.8.10
-    # via
-    #   -c upper-constraints.txt.master
-    #   neutron-lib
-    #   os-ken
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-service
-    #   osprofiler
-    #   pecan
 wheel==0.48.0
-    # via -r tempest/pythonbuilddeps.txt
 wrapt==2.2.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   debtcollector
 yappi==1.7.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 
 # The following packages are considered to be unsafe in a requirements file:
