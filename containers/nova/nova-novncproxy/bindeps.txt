@@ -1,0 +1,1 @@
+# novnc moved to pythondeps.txt to avoid RPM/pip conflicts (amoralej feedback on PR #93)

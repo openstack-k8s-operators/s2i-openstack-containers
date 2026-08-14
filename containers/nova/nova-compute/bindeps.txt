@@ -1,0 +1,14 @@
+python3-libvirt
+libvirt-client
+qemu-kvm-block-rbd
+e2fsprogs
+xfsprogs
+xorriso
+iscsi-initiator-utils
+nfs-utils
+targetcli
+nvme-cli
+device-mapper-multipath
+ceph-common
+python3-openvswitch3.5
+openssh-clients

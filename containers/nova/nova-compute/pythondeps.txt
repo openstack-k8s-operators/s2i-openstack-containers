@@ -1,0 +1,7 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+# Caching backend (dogpile extra for oslo.cache)
+oslo.cache[dogpile]
+# os-vif's ovs plugin needs pyroute2, but the published os-vif wheel's
+# metadata omits it (pbr/packaging gap upstream) - pin explicitly
+pyroute2

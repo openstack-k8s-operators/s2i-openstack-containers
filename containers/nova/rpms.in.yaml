@@ -15,19 +15,33 @@ arches:
 
 packages:
   - cargo
+  - ceph-common
+  - device-mapper-multipath
+  - e2fsprogs
   - gcc
   - gcc-c++
   - git-core
   - httpd
+  - iscsi-initiator-utils
   - libffi-devel
+  - libvirt-client
   - libxml2-devel
   - libxslt-devel
   - mod_ssl
+  - nfs-utils
+  - nvme-cli
+  - openssh-clients
   - openssl-devel
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
+  - python3-libvirt
   - python3-mod_wsgi
+  - python3-openvswitch3.5
   - python3-pip
   - python3-setuptools
+  - qemu-kvm-block-rbd
   - rust
+  - targetcli
+  - xfsprogs
+  - xorriso
