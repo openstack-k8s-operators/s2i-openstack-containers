@@ -323,10 +323,19 @@ build_image() {
   # Clone sources for this stream
   ensure_sources_for_stream "${dir_name}" "${STREAM}"
 
-  # Verify main source exists
+  # Verify main source exists (unless sources.txt only provides constraints)
   local sources_dir="${CONTAINERS_DIR}/${project}/src"
   local src="${sources_dir}/${project}"
-  if [[ ! -d "${src}" ]]; then
+  local _has_source_entries=0
+  while IFS=' ' read -r _s _n _u _b _h; do
+    [[ -z "${_s}" || "${_s}" == \#* ]] && continue
+    [[ "${_s}" != "${STREAM}" ]] && continue
+    [[ "${_n}" == "upper-constraints" ]] && continue
+    _has_source_entries=1
+    break
+  done < "${CONTAINERS_DIR}/${project}/sources.txt"
+
+  if [[ ${_has_source_entries} -eq 1 && ! -d "${src}" ]]; then
     echo "ERROR: Main source not found at ${src}" >&2
     echo "       Ensure ${project} is listed in sources.txt for stream '${STREAM}'" >&2
     return 1
