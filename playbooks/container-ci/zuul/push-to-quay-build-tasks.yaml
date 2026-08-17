@@ -1,0 +1,59 @@
+---
+- name: Resolve the container repository path
+  ansible.builtin.set_fact:
+    s2i_ci_container_repo: >-
+      {{ s2i_ci_workspace_root }}/{{
+         zuul.projects[s2i_ci_container_project].src_dir }}
+
+- name: Resolve the build target expression
+  ansible.builtin.set_fact:
+    s2i_ci_target_expression: >-
+      {{ 'all' if s2i_ci_images == 'all'
+         else (s2i_ci_images | join(',')) }}
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ s2i_ci_log_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Build images tagged for quay
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - build-parallel
+      - "{{ s2i_ci_target_expression }}"
+    chdir: "{{ s2i_ci_container_repo }}"
+  environment:
+    STREAM: "{{ s2i_ci_stream }}"
+    REGISTRY: "{{ s2i_quay_registry }}"
+    NAMESPACE: "{{ s2i_quay_namespace }}"
+    TAG: "{{ s2i_quay_tag }}"
+    PARALLEL: "{{ ansible_facts.processor_vcpus | default(2) | string }}"
+    BUILD_LOGS_DIR: "{{ s2i_ci_log_dir }}"
+    REGISTRY_AUTH_FILE: "{{ s2i_quay_auth_file | default('') }}"
+  register: s2i_quay_build
+  changed_when: s2i_quay_build.rc == 0
+
+- name: Save build output
+  ansible.builtin.copy:
+    dest: "{{ s2i_ci_log_dir }}/quay-build.log"
+    mode: "0644"
+    content: |
+      {{ s2i_quay_build.stdout }}
+      {{ s2i_quay_build.stderr }}
+
+- name: Resolve image references to be pushed
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - refs
+      - "{{ s2i_ci_target_expression }}"
+    chdir: "{{ s2i_ci_container_repo }}"
+  environment:
+    STREAM: "{{ s2i_ci_stream }}"
+    REGISTRY: "{{ s2i_quay_registry }}"
+    NAMESPACE: "{{ s2i_quay_namespace }}"
+    TAG: "{{ s2i_quay_tag }}"
+  register: s2i_quay_image_refs
+  changed_when: false

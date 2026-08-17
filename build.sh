@@ -540,6 +540,129 @@ resolve_targets_array() {
   _RESOLVED_TARGETS=(${output})
 }
 
+# Given a canonical project URL (or suffix), find all images whose
+# sources.txt references it.  Prints matching image targets, one per line.
+# Used by the content provider to implement `s2i_ci_images: auto`.
+# Args: <project-url-or-suffix> [stream]
+auto_detect() {
+  local needle="$1"
+  local stream="${2:-}"
+  local matches=()
+
+  if [[ -z "${needle}" ]]; then
+    echo "ERROR: auto-detect requires a project URL or suffix" >&2
+    return 1
+  fi
+
+  for sources_file in "${CONTAINERS_DIR}"/*/sources.txt \
+                       "${CONTAINERS_DIR}"/*/*/sources.txt; do
+    [[ -f "${sources_file}" ]] || continue
+
+    while IFS=' ' read -r entry_stream name url _branch _hash; do
+      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+      [[ "${name}" == "upper-constraints" ]] && continue
+      [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
+
+      local url_path="${url#*://}"   # remove scheme
+      url_path="${url_path#*/}"      # remove hostname
+      url_path="${url_path%.git}"    # remove .git suffix
+      if [[ "${url_path}" == "${needle}" || "${url}" == "${needle}" || "${url%.git}" == "${needle}" ]]; then
+        local rel="${sources_file#"${CONTAINERS_DIR}"/}"
+        rel="${rel%/sources.txt}"
+
+        if [[ "${rel}" == */* ]]; then
+          # Image-level sources.txt (e.g. octavia/octavia-api/sources.txt)
+          # Only add this specific image, not all siblings.
+          local already=0
+          for m in "${matches[@]+"${matches[@]}"}"; do
+            [[ "${m}" == "${rel}" ]] && already=1 && break
+          done
+          [[ ${already} -eq 0 ]] && matches+=("${rel}")
+        else
+          # Project-level sources.txt (e.g. octavia/sources.txt)
+          # Add all images under the project.
+          local project="${rel}"
+          for img in $(discover_images); do
+            if [[ "${img}" == "${project}/"* ]] || [[ "${img}" == "${project}" ]]; then
+              local already=0
+              for m in "${matches[@]+"${matches[@]}"}"; do
+                [[ "${m}" == "${img}" ]] && already=1 && break
+              done
+              [[ ${already} -eq 0 ]] && matches+=("${img}")
+            fi
+          done
+        fi
+      fi
+    done < "${sources_file}"
+  done
+
+  if [[ ${#matches[@]} -eq 0 ]]; then
+    echo "ERROR: no images reference '${needle}'" >&2
+    return 1
+  fi
+
+  printf '%s\n' "${matches[@]}"
+}
+
+# List source dependencies for an image target.
+# Outputs pipe-delimited records: name|canonical_project|url|dest_dir
+# Used by Ansible playbooks to stage Zuul sources without re-parsing
+# sources.txt themselves (build.sh is the single source of truth).
+# Args: <image-target> [stream]
+list_sources() {
+  local target="$1"
+  local stream="${2:-${STREAM:-}}"
+  local project="${target%%/*}"
+
+  if [[ -z "${target}" ]]; then
+    echo "ERROR: list-sources requires an image target" >&2
+    return 1
+  fi
+
+  local sources_files=()
+  if [[ "${target}" == "base" ]]; then
+    [[ -f "${CONTAINERS_DIR}/base/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/base/sources.txt")
+  elif [[ "${target}" == */* ]]; then
+    # Image-level target (e.g. octavia/octavia-api): project + image sources
+    [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/${project}/sources.txt")
+    [[ -f "${CONTAINERS_DIR}/${target}/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/${target}/sources.txt")
+  else
+    # Project-level target (e.g. octavia): project + all image-level sources
+    [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/${project}/sources.txt")
+    for sub_sources in "${CONTAINERS_DIR}/${project}"/*/sources.txt; do
+      [[ -f "${sub_sources}" ]] && \
+        sources_files+=("${sub_sources}")
+    done
+  fi
+
+  declare -A _seen_sources=()
+  for sources_file in "${sources_files[@]}"; do
+    while IFS=' ' read -r entry_stream name url _branch _hash; do
+      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+      [[ "${name}" == "upper-constraints" ]] && continue
+      [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
+      [[ -n "${_seen_sources[${name}]:-}" ]] && continue
+      _seen_sources["${name}"]=1
+
+      local url_path="${url#*://}"
+      url_path="${url_path#*/}"
+      url_path="${url_path%.git}"
+
+      local dest_dir
+      if [[ "${target}" == "base" ]]; then
+        dest_dir="${CONTAINERS_DIR}/base/src/${name}"
+      else
+        dest_dir="${CONTAINERS_DIR}/${project}/src/${name}"
+      fi
+
+      echo "${name}|${url_path}|${url}|${dest_dir}"
+    done < "${sources_file}"
+  done
+}
 # Clone a repo at a branch tip (or tag) and store the resolved commit hash
 # in _CLONE_RESULT.  Must NOT be called via command substitution ($(...))
 # because _AUTO_CLONED assignments would be lost in the subshell.
@@ -1329,6 +1452,20 @@ case "${ACTION}" in
     resolve_targets_array "${TARGETS[@]}"
     printf '%s\n' "${_RESOLVED_TARGETS[@]}"
     ;;
+  auto-detect)
+    if [[ ${#TARGETS[@]} -eq 0 || "${TARGETS[0]}" == "all" ]]; then
+      echo "Usage: $0 auto-detect <project-url-or-suffix> [stream]" >&2
+      exit 1
+    fi
+    auto_detect "${TARGETS[0]}" "${TARGETS[1]:-}"
+    ;;
+  list-sources)
+    if [[ ${#TARGETS[@]} -eq 0 || "${TARGETS[0]}" == "all" ]]; then
+      echo "Usage: STREAM=<name> $0 list-sources <image-target>" >&2
+      exit 1
+    fi
+    list_sources "${TARGETS[0]}" "${TARGETS[1]:-}"
+    ;;
   update-sources)
     if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
       echo "=== Skipping hash update (SKIP_HASH_UPDATE is set) ==="
@@ -1436,7 +1573,28 @@ case "${ACTION}" in
     list_images
     ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo ""
+    echo "Commands:"
+    echo "  build              Build one or more images sequentially"
+    echo "  build-parallel     Build images in parallel (max PARALLEL at once)"
+    echo "  push               Push previously built images to the registry"
+    echo "  refs               Print full registry references (REGISTRY/NAMESPACE/IMAGE:TAG)"
+    echo "                     for the given targets. Useful for CI scripts that need the"
+    echo "                     exact image URIs produced by a build"
+    echo "  resolve            Resolve target expressions to concrete image paths and print"
+    echo "                     one per line. Accepts 'all', project names, image paths, or"
+    echo "                     comma-separated unions. Used internally and by CI to expand"
+    echo "                     shorthand into the canonical project/image list"
+    echo "  auto-detect        Given an upstream project path (e.g. openstack/nova), print"
+    echo "                     the container images whose sources.txt references that project"
+    echo "  list-sources       Print pipe-delimited source records for a target:"
+    echo "                     name|canonical_project|url|dest_dir"
+    echo "  update-sources     Fetch latest upstream commits and regenerate lockfiles"
+    echo "  update-lockfiles   Regenerate lockfiles without advancing source pins"
+    echo "  install-deps       Install system packages required for building (git, buildah,"
+    echo "                     podman). Auto-detects the package manager (dnf/microdnf/apt)"
+    echo "  list               List all discoverable images with their registry tags"
     echo ""
     echo "Images (discovered from containers/):"
     for dir_name in $(discover_images); do

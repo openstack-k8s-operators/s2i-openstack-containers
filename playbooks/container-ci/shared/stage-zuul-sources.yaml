@@ -1,0 +1,56 @@
+---
+# Stage Zuul-checked-out source repositories into container build contexts.
+#
+# For speculative builds, Zuul checks out patched source repos into the
+# workspace.  This task file copies those checkouts into the container
+# src/ directories so build.sh uses the patched code instead of cloning
+# from pinned hashes.
+#
+# It delegates all sources.txt parsing to `build.sh list-sources`, keeping
+# build.sh as the single source of truth for the source manifest format.
+#
+# Required facts (set by shared/run.yaml before including this):
+#   s2i_ci_container_repo  - path to the s2i-openstack-containers checkout
+#   s2i_ci_stream          - stream name (e.g. "master")
+#   s2i_ci_workspace_root  - Zuul workspace root
+#   s2i_ci_resolved_images - register from `build.sh resolve`
+
+- name: Collect Zuul project canonical names
+  ansible.builtin.set_fact:
+    s2i_ci_zuul_project_names: >-
+      {{ zuul.projects | default({}) | list }}
+
+- name: Query source dependencies for each image target
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - list-sources
+      - "{{ item }}"
+      - "{{ s2i_ci_stream }}"
+  args:
+    chdir: "{{ s2i_ci_container_repo }}"
+  loop: "{{ s2i_ci_resolved_images.stdout.split() }}"
+  register: s2i_ci_source_queries
+  changed_when: false
+  failed_when: false
+
+- name: Build unified source placement list
+  ansible.builtin.set_fact:
+    s2i_ci_source_placements: >-
+      {{ s2i_ci_source_queries.results
+         | selectattr('stdout_lines', 'defined')
+         | map(attribute='stdout_lines')
+         | flatten
+         | unique
+         | list }}
+
+- name: Stage each Zuul-available source into its build context
+  ansible.builtin.include_tasks: stage-zuul-source-sync.yaml
+  loop: >-
+    {{ s2i_ci_source_placements
+       | map('split', '|')
+       | selectattr('1', 'in', s2i_ci_zuul_project_names)
+       | list }}
+  loop_control:
+    loop_var: s2i_ci_src
+    label: "{{ s2i_ci_src[0] }} ({{ s2i_ci_src[1] }})"

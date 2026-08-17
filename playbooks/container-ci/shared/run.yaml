@@ -56,6 +56,10 @@
       changed_when: false
       failed_when: false
 
+    - name: Resolve auto-detected images when s2i_ci_images is 'auto'
+      when: s2i_ci_images == 'auto'
+      ansible.builtin.include_tasks: resolve-auto-images.yaml
+
     - name: Validate selective provider inputs
       ansible.builtin.assert:
         that:
@@ -187,7 +191,10 @@
                'target': s2i_ci_target_expression
              } | to_nice_json }}
 
-    - name: Build selected images from committed source pins
+    - name: Stage Zuul source checkouts for speculative builds
+      ansible.builtin.include_tasks: stage-zuul-sources.yaml
+
+    - name: Build selected images
       ansible.builtin.command:
         argv:
           - "{{ s2i_ci_container_repo }}/build.sh"
@@ -285,6 +292,12 @@
               select('match', '^' +
                      (s2i_ci_public_registry_endpoint | regex_escape) + '/') |
               list | length == s2i_ci_published_images | length
+        fail_msg: Public references are incomplete or malformed
+
+    - name: Verify local alias is not leaked into public references
+      when: s2i_ci_registry.endpoint != s2i_ci_public_registry_endpoint
+      ansible.builtin.assert:
+        that:
           - s2i_ci_published_images |
               select('search', s2i_ci_registry.endpoint | regex_escape) |
               list | length == 0

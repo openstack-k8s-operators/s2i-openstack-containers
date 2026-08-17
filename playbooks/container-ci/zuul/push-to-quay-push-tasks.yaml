@@ -1,0 +1,31 @@
+---
+- name: Push images to quay
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - push
+      - "{{ s2i_ci_target_expression }}"
+    chdir: "{{ s2i_ci_container_repo }}"
+  environment:
+    STREAM: "{{ s2i_ci_stream }}"
+    REGISTRY: "{{ s2i_quay_registry }}"
+    NAMESPACE: "{{ s2i_quay_namespace }}"
+    TAG: "{{ s2i_quay_tag }}"
+    REGISTRY_AUTH_FILE: "{{ s2i_quay_auth_file | default('') }}"
+  register: s2i_quay_push
+  changed_when: s2i_quay_push.rc == 0
+
+- name: Save push output
+  ansible.builtin.copy:
+    dest: "{{ s2i_ci_log_dir }}/quay-push.log"
+    mode: "0644"
+    content: |
+      {{ s2i_quay_push.stdout }}
+      {{ s2i_quay_push.stderr }}
+
+- name: Log pushed references
+  ansible.builtin.debug:
+    msg: >-
+      Pushed {{ s2i_quay_image_refs.stdout_lines |
+      reject('equalto', '') | list | length }} image references
+      to {{ s2i_quay_registry }}/{{ s2i_quay_namespace }}

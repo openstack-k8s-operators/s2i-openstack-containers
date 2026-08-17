@@ -18,10 +18,10 @@
     name: s2i-openstack-container-content-provider
     parent: base
     description: |
-      Build and publish OpenStack service container images from committed
-      source pins for dependent jobs. This repository builds all maintained
-      images by default; child jobs can select a subset and add related
-      required projects. Speculative source consumption remains follow-up work.
+      Build and publish OpenStack service container images for dependent
+      jobs. This repository builds all maintained images by default;
+      child jobs can select a subset, use auto-detect for speculative
+      rebuilds, and add related required projects.
     timeout: 7200
     nodeset: s2i-openstack-containers-image-builder
     required-projects:
@@ -36,3 +36,65 @@
       s2i_ci_images: all
       s2i_ci_stream: master
       s2i_ci_content_provider: true
+
+- job:
+    name: s2i-speculative-deploy-test-base
+    abstract: true
+    parent: podified-multinode-edpm-deployment-crc-test-operator
+    description: |
+      Abstract base for validating speculatively-built s2i service images
+      that are enabled in the standard OpenStack deployment (e.g. glance,
+      nova).  Deploys OpenStack via the parent job.  s2i-built images from
+      the content provider are applied to OpenStackVersion during
+      edpm_prepare (via ci-framework set_containers) before the control plane
+      is deployed.  Tempest tests scoped to the target service run via
+      test-operator.
+
+      Child jobs must set s2i_tempest_include_list to scope the tests.
+
+      Services with custom deployments (e.g. watcher, which needs 2+
+      computes and operator-specific scenarios) should parent their own
+      operator base job and set content_provider_registry_ip to the s2i
+      buildset registry host.  See s2i-speculative-deploy-test-watcher in
+      watcher-operator for an example.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
+    vars:
+      content_provider_registry_ip: "{{ s2i_content_provider_registry_ip }}"
+      cifmw_set_containers_preserve_unlisted: true
+      cifmw_set_containers_images: >-
+        {{
+          s2i_content_provider_os_custom_container_images | dict2items |
+          json_query('[].{name: key, full_registry: value}')
+        }}
+      cifmw_test_operator_stages:
+        - name: tempest
+          type: tempest
+      cifmw_test_operator_tempest_include_list: |
+        {{ s2i_tempest_include_list }}
+      s2i_tempest_include_list: ""
+
+- job:
+    name: s2i-openstack-deploy-validation
+    parent: s2i-speculative-deploy-test-base
+    description: |
+      Full deployment validation for the s2i-openstack-containers repo.
+      Deploys OpenStack with mapped s2i-built images from the content
+      provider applied to OpenStackVersion during edpm_prepare, then runs
+      a tempest smoke suite. Images without an OpenStackVersion mapping
+      (and services s2i does not build, such as nova-compute) keep the
+      operator defaults.
+
+      Used in the s2i repo's github-check pipeline to gate PRs
+      (especially update-sources bumps) on real deployment validation.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+    vars:
+      s2i_tempest_include_list: |
+        tempest.api.compute.servers.test_create_server.ServersTestJSON.test_list_servers
+        tempest.api.compute.servers.test_server_actions.ServerActionsTestJSON.test_reboot_server_hard
+        tempest.api.identity.v3.test_tokens.TokensV3Test.test_create_token
+        tempest.api.image.v2.test_images.ListImagesTest.test_list_images
+        tempest.api.network.test_networks.NetworksTest.test_list_networks
+        tempest.api.volume.test_volumes_list.VolumesListTestJSON.test_volume_list

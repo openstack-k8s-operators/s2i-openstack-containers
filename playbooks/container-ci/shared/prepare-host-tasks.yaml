@@ -1,0 +1,39 @@
+---
+- name: Ensure the container build log directory exists
+  ansible.builtin.file:
+    path: "{{ s2i_ci_log_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Update the apt package cache
+  when:
+    - s2i_ci_install_host_packages | default(true) | bool
+    - ansible_facts.os_family == "Debian"
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install container build host packages
+  when: s2i_ci_install_host_packages | default(true) | bool
+  become: true
+  ansible.builtin.package:
+    name:
+      - buildah
+      - ca-certificates
+      - git
+      - openssl
+    state: present
+
+- name: Ensure Podman is installed and usable
+  when: s2i_ci_install_host_packages | default(true) | bool
+  ansible.builtin.include_role:
+    name: ensure-podman
+  vars:
+    ensure_podman_rootless: false
+    ensure_podman_validate: true
+
+- name: Validate Buildah
+  when: s2i_ci_install_host_packages | default(true) | bool
+  ansible.builtin.command: buildah version
+  changed_when: false

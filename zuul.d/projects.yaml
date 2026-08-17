@@ -11,3 +11,8 @@
               - ^LICENSE.*$
         - s2i-openstack-container-content-provider:
             irrelevant-files: *irrelevant-for-zuul
+        - s2i-openstack-deploy-validation:
+            irrelevant-files: *irrelevant-for-zuul
+            voting: false
+            dependencies:
+              - s2i-openstack-container-content-provider

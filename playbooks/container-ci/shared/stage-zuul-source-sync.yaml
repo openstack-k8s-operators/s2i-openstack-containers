@@ -1,0 +1,43 @@
+---
+# Sync a single Zuul source checkout into its container build context.
+#
+# s2i_ci_src is a list: [name, canonical_project, url, dest_dir]
+# from `build.sh list-sources` output.
+
+- name: "Resolve Zuul checkout path for {{ s2i_ci_src[0] }}"
+  ansible.builtin.set_fact:
+    s2i_ci_sync_from: >-
+      {{ s2i_ci_workspace_root }}/{{
+         zuul.projects[s2i_ci_src[1]].src_dir }}
+    s2i_ci_sync_to: "{{ s2i_ci_src[3] }}"
+
+- name: "Verify Zuul checkout exists for {{ s2i_ci_src[0] }}"
+  ansible.builtin.stat:
+    path: "{{ s2i_ci_sync_from }}/.git"
+  register: s2i_ci_sync_check
+
+- name: "Sync into build context for {{ s2i_ci_src[0] }}"
+  when: s2i_ci_sync_check.stat.isdir | default(false)
+  block:
+    - name: "Ensure destination directory for {{ s2i_ci_src[0] }}"
+      ansible.builtin.file:
+        path: "{{ s2i_ci_sync_to }}"
+        state: directory
+        mode: "0755"
+
+    - name: "Copy source for {{ s2i_ci_src[0] }}"
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - --archive
+          - --delete
+          - --exclude=.tox
+          - --exclude=.venv
+          - --exclude=__pycache__
+          - "{{ s2i_ci_sync_from }}/"
+          - "{{ s2i_ci_sync_to }}/"
+      changed_when: true
+
+    - name: "Log staged source for {{ s2i_ci_src[0] }}"
+      ansible.builtin.debug:
+        msg: "Staged {{ s2i_ci_src[1] }} -> {{ s2i_ci_sync_to }}"
