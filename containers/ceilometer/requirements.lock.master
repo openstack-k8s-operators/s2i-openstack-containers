@@ -1,659 +1,119 @@
-#
-#
-#    pip-compile --allow-unsafe --constraint=upper-constraints.txt.master --output-file=requirements.lock.master --strip-extras ceilometer-central/pythonbuilddeps.txt ceilometer-central/pythondeps.txt ceilometer-compute/pythonbuilddeps.txt ceilometer-compute/pythondeps.txt ceilometer-ipmi/pythonbuilddeps.txt ceilometer-ipmi/pythondeps.txt ceilometer-notification/pythonbuilddeps.txt ceilometer-notification/pythondeps.txt src/ceilometer/requirements.txt
-#
 amqp==5.3.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   kombu
-    #   oslo-messaging
 aodhclient==3.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 attrs==26.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   referencing
 autopage==0.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cliff
 awscrt==0.35.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   awscurl
 awscurl==0.44
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 bcrypt==5.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
 boto3==1.35.99
-    # via
-    #   -c upper-constraints.txt.master
-    #   awscurl
 botocore==1.35.99
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   awscurl
-    #   boto3
-    #   s3transfer
 cachetools==7.1.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-messaging
 certifi==2026.7.22
-    # via requests
 cffi==2.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cryptography
-    #   oslo-privsep
 charset-normalizer==3.4.7
-    # via
-    #   -c upper-constraints.txt.master
-    #   requests
 cliff==4.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   aodhclient
-    #   gnocchiclient
-    #   osc-lib
 cmd2==4.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cliff
 configargparse==1.7.5
-    # via
-    #   -c upper-constraints.txt.master
-    #   awscurl
 configparser==7.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   awscurl
 cotyledon==2.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 cryptography==43.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 debtcollector==3.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   futurist
-    #   gnocchiclient
-    #   oslo-concurrency
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-privsep
-    #   oslo-rootwrap
-    #   oslo-service
 decorator==5.3.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   dogpile-cache
-    #   jsonpath-rw
-    #   openstacksdk
 dnspython==2.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   eventlet
 dogpile-cache==1.5.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
-    #   oslo-cache
 eventlet==0.41.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 fasteners==0.20
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-concurrency
-    #   tooz
 futurist==3.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   gnocchiclient
-    #   oslo-messaging
-    #   tooz
 gnocchiclient==7.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 greenlet==3.5.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   eventlet
-    #   oslo-service
 idna==3.18
-    # via
-    #   -c upper-constraints.txt.master
-    #   requests
 iso8601==2.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gnocchiclient
-    #   keystoneauth1
-    #   openstacksdk
-    #   oslo-utils
-    #   python-novaclient
 jinja2==3.1.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
-    #   oslo-reports
 jmespath==1.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   boto3
-    #   botocore
-    #   openstacksdk
 jsonpatch==1.33
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 jsonpath-rw==1.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonpath-rw-ext
 jsonpath-rw-ext==1.2.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 jsonpointer==3.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonpatch
 jsonschema==4.26.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   python-zaqarclient
 jsonschema-specifications==2025.9.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
 keystoneauth1==5.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   aodhclient
-    #   gnocchiclient
-    #   openstacksdk
-    #   osc-lib
-    #   python-novaclient
-    #   python-zaqarclient
 kombu==5.6.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 lxml==6.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 markdown-it-py==4.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   rich
 markupsafe==3.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   jinja2
 mdurl==0.1.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   markdown-it-py
 msgpack==1.2.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-privsep
-    #   oslo-serialization
-    #   tooz
 netaddr==1.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-config
-    #   oslo-utils
-    #   osprofiler
 openstacksdk==4.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   osc-lib
 os-service-types==1.8.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   keystoneauth1
-    #   openstacksdk
 osc-lib==4.7.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   aodhclient
-    #   python-zaqarclient
 oslo-cache==4.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r ceilometer-central/pythondeps.txt
-    #   -r ceilometer-compute/pythondeps.txt
-    #   -r ceilometer-ipmi/pythondeps.txt
-    #   -r ceilometer-notification/pythondeps.txt
-    #   -r src/ceilometer/requirements.txt
 oslo-concurrency==7.6.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-service
-    #   osprofiler
 oslo-config==10.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-cache
-    #   oslo-concurrency
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-privsep
-    #   oslo-reports
-    #   oslo-service
-    #   oslo-upgradecheck
-    #   osprofiler
 oslo-context==6.5.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-policy
 oslo-i18n==6.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   aodhclient
-    #   osc-lib
-    #   oslo-cache
-    #   oslo-concurrency
-    #   oslo-config
-    #   oslo-log
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-privsep
-    #   oslo-reports
-    #   oslo-service
-    #   oslo-upgradecheck
-    #   oslo-utils
-    #   python-novaclient
-    #   python-zaqarclient
 oslo-log==8.3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-cache
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-privsep
-    #   oslo-service
-    #   python-zaqarclient
 oslo-messaging==18.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 oslo-metrics==0.16.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 oslo-middleware==8.2.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 oslo-policy==6.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-upgradecheck
 oslo-privsep==3.12.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 oslo-reports==3.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 oslo-rootwrap==7.10.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 oslo-serialization==5.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   aodhclient
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-policy
-    #   oslo-reports
-    #   osprofiler
-    #   python-novaclient
-    #   tooz
 oslo-service==4.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
 oslo-upgradecheck==2.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 oslo-utils==10.1.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   aodhclient
-    #   osc-lib
-    #   oslo-cache
-    #   oslo-concurrency
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-policy
-    #   oslo-privsep
-    #   oslo-reports
-    #   oslo-serialization
-    #   oslo-service
-    #   oslo-upgradecheck
-    #   osprofiler
-    #   python-novaclient
-    #   python-zaqarclient
-    #   tooz
 osprofiler==4.4.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   aodhclient
 packaging==26.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   kombu
-    #   oslo-utils
 paste==3.10.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 pastedeploy==3.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 pbr==7.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r ceilometer-central/pythonbuilddeps.txt
-    #   -r ceilometer-compute/pythonbuilddeps.txt
-    #   -r ceilometer-ipmi/pythonbuilddeps.txt
-    #   -r ceilometer-notification/pythonbuilddeps.txt
-    #   -r src/ceilometer/requirements.txt
-    #   aodhclient
-    #   jsonpath-rw-ext
-    #   openstacksdk
-    #   os-service-types
-    #   osc-lib
-    #   oslo-concurrency
-    #   oslo-context
-    #   oslo-i18n
-    #   oslo-log
-    #   oslo-messaging
-    #   oslo-metrics
-    #   oslo-middleware
-    #   oslo-reports
-    #   oslo-rootwrap
-    #   oslo-utils
-    #   python-novaclient
-    #   python-zaqarclient
 platformdirs==4.10.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
 ply==3.11
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonpath-rw
 prettytable==3.18.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cliff
-    #   oslo-upgradecheck
-    #   osprofiler
-    #   python-novaclient
 prometheus-client==0.25.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   oslo-metrics
 prompt-toolkit==3.0.52
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 psutil==7.2.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   openstacksdk
-    #   oslo-reports
-    #   oslo-utils
 pycparser==3.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cffi
 pygments==2.20.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   rich
 pymemcache==4.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-cache
 pyparsing==3.3.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   aodhclient
-    #   oslo-utils
 pyperclip==1.11.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 python-binary-memcached==0.32.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-cache
 python-dateutil==2.9.0.post0
-    # via
-    #   -c upper-constraints.txt.master
-    #   botocore
-    #   gnocchiclient
-    #   oslo-log
 python-memcached==1.62
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-cache
 python-novaclient==18.13.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 python-swiftclient==4.10.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 python-zaqarclient==4.6.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 pyyaml==6.0.3
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   cliff
-    #   openstacksdk
-    #   oslo-config
-    #   oslo-messaging
-    #   oslo-policy
-    #   oslo-utils
 redis==8.0.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-cache
 referencing==0.37.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   jsonschema-specifications
 repoze-lru==0.8
-    # via
-    #   -c upper-constraints.txt.master
-    #   routes
 requests==2.34.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   awscurl
-    #   keystoneauth1
-    #   osc-lib
-    #   oslo-config
-    #   oslo-policy
-    #   osprofiler
-    #   python-swiftclient
-    #   python-zaqarclient
 rfc3986==2.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-config
 rich==15.0.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
-    #   rich-argparse
 rich-argparse==1.8.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cmd2
 routes==2.5.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 rpds-py==2026.5.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonschema
-    #   referencing
 s3transfer==0.10.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   boto3
 setproctitle==1.3.7
-    # via
-    #   -c upper-constraints.txt.master
-    #   cotyledon
 six==1.17.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   jsonpath-rw
-    #   python-binary-memcached
-    #   python-dateutil
-    #   routes
 statsd==4.0.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-middleware
 stevedore==5.9.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   cliff
-    #   dogpile-cache
-    #   keystoneauth1
-    #   osc-lib
-    #   oslo-config
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-policy
-    #   python-novaclient
-    #   python-zaqarclient
-    #   tooz
 tenacity==9.1.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
-    #   tooz
 tooz==9.0.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 typing-extensions==4.15.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   cotyledon
-    #   keystoneauth1
-    #   os-service-types
-    #   oslo-context
-    #   oslo-middleware
-    #   referencing
 tzdata==2026.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   kombu
 uhashring==2.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   python-binary-memcached
 ujson==5.13.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   gnocchiclient
 urllib3==2.7.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   awscurl
-    #   botocore
-    #   requests
 vine==5.1.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   amqp
-    #   kombu
 voluptuous==0.16.0
-    # via
-    #   -c upper-constraints.txt.master
-    #   tooz
 wcwidth==0.8.1
-    # via
-    #   -c upper-constraints.txt.master
-    #   prettytable
-    #   prompt-toolkit
 webob==1.8.10
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-messaging
-    #   oslo-middleware
-    #   oslo-service
-    #   osprofiler
 wrapt==2.2.2
-    # via
-    #   -c upper-constraints.txt.master
-    #   debtcollector
 xmltodict==1.0.4
-    # via
-    #   -c upper-constraints.txt.master
-    #   -r src/ceilometer/requirements.txt
 yappi==1.7.6
-    # via
-    #   -c upper-constraints.txt.master
-    #   oslo-service
 
 # The following packages are considered to be unsafe in a requirements file:

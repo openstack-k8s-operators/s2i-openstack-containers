@@ -3,21 +3,22 @@ ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
 # --- Build stage: compile wheels and collect upstream config ---
 FROM ${BASE_IMAGE} AS build
 
+ENV CONTAINER_NAME="ceilometer-central"
 ARG SERVICE_SRC=/src/ceilometer
 
 ARG CONSTRAINTS_FILE=requirements.lock
 COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
 COPY src/ /src/
-COPY ceilometer-central/src/ /src/
+COPY ${CONTAINER_NAME}/src/ /src/
 
 ARG PIP_NO_BINARY=""
 ENV PIP_NO_BINARY=${PIP_NO_BINARY}
 
-COPY ceilometer-central/builddeps.txt /tmp/builddeps.txt
+COPY ${CONTAINER_NAME}/builddeps.txt /tmp/builddeps.txt
 RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
 
-COPY ceilometer-central/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+COPY ${CONTAINER_NAME}/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
 RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
     rm /tmp/pythonbuilddeps.txt
@@ -49,19 +50,20 @@ RUN for src_dir in /src/*/ /src/overrides/*/; do \
 # --- Runtime stage ---
 FROM ${BASE_IMAGE}
 
+ENV CONTAINER_NAME="ceilometer-central"
 LABEL summary="OpenStack Ceilometer Central Agent" \
       io.k8s.description="Ceilometer central polling agent container built from source with kolla interface"
 
 RUN uid_gid_manage ceilometer
 
-COPY ceilometer-central/bindeps.txt /tmp/bindeps.txt
+COPY ${CONTAINER_NAME}/bindeps.txt /tmp/bindeps.txt
 RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && rm /tmp/bindeps.txt
 
 COPY --from=build /wheels /wheels
 COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
 COPY --from=build /source-built-packages.txt /source-built-packages.txt
-COPY ceilometer-central/pythondeps.txt /tmp/pythondeps.txt
+COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps.txt
 RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     pip3 install --no-cache-dir --prefix=/usr \
       -c /deps-upper-constraints.txt \
