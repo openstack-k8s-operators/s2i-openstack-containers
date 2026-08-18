@@ -3,3 +3,5 @@
 __pycache__/
 *.py[cod]
 *$py.class
+# HTTP artifacts fetched by build.sh from artifacts.txt
+**/*.tar.gz

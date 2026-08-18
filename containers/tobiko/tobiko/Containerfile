@@ -1,0 +1,114 @@
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# --- Build stage: compile wheels from source ---
+FROM ${BASE_IMAGE} AS build
+
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY src/ /src/
+COPY tobiko/src/ /src/
+
+# We can force build from source of all packages optionally
+ARG PIP_NO_BINARY=""
+ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+# required to build rpds-py from source
+ENV MATURIN_NO_INSTALL_RUST=true
+
+COPY tobiko/builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
+
+COPY tobiko/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
+    rm /tmp/pythonbuilddeps.txt
+
+RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
+    for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        # Normalize underscores to hyphens: setup.cfg may use either form
+        # but the lockfile always uses hyphens.
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//' | tr '_' '-'); \
+        sed -i "/^${pkg_name}[=!<>]/Id" /tmp/build-constraints.txt; \
+      fi; \
+    done
+
+# First build the wheels for the packages themselves
+RUN for pkg in /src/*/ /src/overrides/*/; do \
+      if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
+      fi; \
+    done
+
+# Second, build the wheels for the dependencies and place them in a different directory
+RUN pip3 wheel --no-cache-dir --no-deps \
+          --find-links=/wheels/pkgs \
+          --wheel-dir=/wheels/deps -r /deps-upper-constraints.txt
+
+RUN for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        echo "${pkg_name},${commit},${version}"; \
+      fi; \
+    done > /source-built-packages.txt
+
+# --- Runtime stage ---
+FROM ${BASE_IMAGE}
+
+LABEL summary="OpenStack Tobiko" \
+      io.k8s.description="Tobiko testing framework image built from source with the Kolla interface"
+
+RUN uid_gid_manage tobiko
+
+COPY tobiko/bindeps.txt /tmp/bindeps.txt
+RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm /tmp/bindeps.txt
+
+COPY --from=build /wheels /wheels
+COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
+COPY --from=build /source-built-packages.txt /source-built-packages.txt
+COPY tobiko/pythondeps.txt /tmp/pythondeps.txt
+RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    pip3 install --no-cache-dir --prefix=/usr \
+      -c /deps-upper-constraints.txt \
+      --find-links=/wheels/deps \
+      --find-links=/wheels/pkgs \
+      /wheels/pkgs/*.whl ${extrapkgs} && \
+    rm -rf /wheels /tmp/pythondeps.txt
+
+# Full git checkout so run_tobiko.sh can git pull / checkout TOBIKO_VERSION
+# and tox can run tests from the source tree (TCIB layout).
+COPY --from=build /src/tobiko /usr/local/src/tobiko
+
+# oc/kubectl for tobiko.podified. Prefetched by build.sh from artifacts.txt
+# (pinned mirror.openshift.com tarball; no network in this RUN).
+ARG TARGETARCH=amd64
+COPY tobiko/openshift-client-linux-${TARGETARCH}.tar.gz /tmp/openshift-client-linux.tar.gz
+RUN tar -zx -C /usr/local/bin -f /tmp/openshift-client-linux.tar.gz oc kubectl && \
+    rm -f /tmp/openshift-client-linux.tar.gz
+
+ENV TOBIKO_DIR=/var/lib/tobiko \
+    TOBIKO_SRC_DIR=/usr/local/src/tobiko \
+    USE_EXTERNAL_FILES=true \
+    HOME=/var/lib/tobiko \
+    PYTHONWARNINGS=ignore::Warning
+
+RUN mkdir -p /etc/tobiko /var/log/tobiko \
+             ${TOBIKO_DIR}/external_files \
+             /var/lib/kolla/config_files && \
+    touch /var/lib/kolla/config_files/config.json && \
+    chown -R tobiko:tobiko /etc/tobiko /var/log/tobiko \
+                           ${TOBIKO_DIR} /usr/local/src/tobiko
+
+COPY tobiko/config/etc/sudoers.d/tobiko_sudoers /etc/sudoers.d/tobiko_sudoers
+COPY tobiko/scripts/run_tobiko.sh /usr/local/bin/run_tobiko.sh
+
+RUN chmod +x /usr/local/bin/run_tobiko.sh && \
+    chmod 440 /etc/sudoers.d/tobiko_sudoers
+
+WORKDIR ${TOBIKO_DIR}
+ENTRYPOINT ["/usr/local/bin/run_tobiko.sh"]

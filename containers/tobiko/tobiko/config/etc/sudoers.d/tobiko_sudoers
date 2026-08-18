@@ -1,0 +1,3 @@
+# Sourced from openstack-k8s-operators/tcib
+# container-images/tcib/base/tobiko/tobiko_sudoers
+tobiko ALL=(ALL) NOPASSWD: ALL
