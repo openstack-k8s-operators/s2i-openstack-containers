@@ -8,3 +8,7 @@ libffi-devel
 openssl-devel
 libxml2-devel
 libxslt-devel
+# Rust toolchain to build bcrypt from source (PIP_NO_BINARY=:all:)
+rust
+# ... and cargo to build rpds-py from source
+cargo

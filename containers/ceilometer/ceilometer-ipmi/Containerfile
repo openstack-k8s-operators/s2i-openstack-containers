@@ -31,21 +31,34 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
       fi; \
     done
 
+# Build wheels from source packages (project repos and overrides)
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
-        pip3 wheel --no-cache-dir --no-build-isolation --no-deps \
-          --wheel-dir=/wheels "${pkg}"; \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
       fi; \
     done
+
+# Build wheels for all dependencies (from the constraints/lockfile)
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --find-links=/wheels/pkgs \
+      --wheel-dir=/wheels/deps -r /deps-upper-constraints.txt
 
 RUN for src_dir in /src/*/ /src/overrides/*/; do \
       if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
         pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
         commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
-        version=$(ls /wheels/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
         echo "${pkg_name},${commit},${version}"; \
       fi; \
     done > /source-built-packages.txt
+
+# Collect upstream config files
+RUN mkdir -p /configfiles/etc/ceilometer/rootwrap.d && \
+    cp -a ${SERVICE_SRC}/ceilometer/pipeline/data/pipeline.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/etc/ceilometer/polling.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/etc/ceilometer/rootwrap.conf /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/etc/ceilometer/rootwrap.d/ipmi.filters /configfiles/etc/ceilometer/rootwrap.d/
 
 # --- Runtime stage ---
 FROM ${BASE_IMAGE}
@@ -67,18 +80,28 @@ COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps.txt
 RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     pip3 install --no-cache-dir --prefix=/usr \
       -c /deps-upper-constraints.txt \
-      /wheels/*.whl ${extrapkgs} && \
+      --find-links=/wheels/deps \
+      --find-links=/wheels/pkgs \
+      /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
 RUN mkdir -p /etc/ceilometer/rootwrap.d /var/log/ceilometer /var/lib/ceilometer /var/lib/ceilometer/tmp && \
     chmod 750 /var/log/ceilometer && \
     chown -R ceilometer:ceilometer /etc/ceilometer /var/log/ceilometer /var/lib/ceilometer
 
+# Install config files — each file listed explicitly
+COPY --from=build /configfiles/etc/ceilometer/pipeline.yaml /etc/ceilometer/pipeline.yaml
+COPY --from=build /configfiles/etc/ceilometer/polling.yaml /etc/ceilometer/polling.yaml
+COPY --from=build /configfiles/etc/ceilometer/rootwrap.conf /etc/ceilometer/rootwrap.conf
+COPY --from=build /configfiles/etc/ceilometer/rootwrap.d/ipmi.filters /etc/ceilometer/rootwrap.d/ipmi.filters
 COPY common/config/usr/share/ceilometer/ceilometer-dist.conf /usr/share/ceilometer/ceilometer-dist.conf
-COPY ${CONTAINER_NAME}/config/etc/sudoers.d/ceilometer /etc/sudoers.d/ceilometer
+COPY common/config/etc/sudoers.d/ceilometer /etc/sudoers.d/ceilometer
 
-# Do we copy in rootwra/etc/ceilometer/rootwrap.conf amd /etc/ceilometer/rootwrap.d/ipmi.filters in telemetry-operator?
-RUN chmod 640 /usr/share/ceilometer/ceilometer-dist.conf && \
+RUN chmod 640 /etc/ceilometer/pipeline.yaml \
+              /etc/ceilometer/polling.yaml \
+              /etc/ceilometer/rootwrap.conf \
+              /etc/ceilometer/rootwrap.d/ipmi.filters \
+              /usr/share/ceilometer/ceilometer-dist.conf && \
     chmod 440 /etc/sudoers.d/ceilometer && \
     chown -R root:ceilometer /etc/ceilometer /usr/share/ceilometer
 

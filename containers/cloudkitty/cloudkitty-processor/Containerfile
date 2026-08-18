@@ -10,6 +10,10 @@ COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
 COPY src/ /src/
 COPY cloudkitty-processor/src/ /src/
 
+# We can force build from source of all packages optionally
+ARG PIP_NO_BINARY=""
+ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+
 COPY cloudkitty-processor/builddeps.txt /tmp/builddeps.txt
 RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
@@ -43,15 +47,7 @@ RUN for src_dir in /src/*/ /src/overrides/*/; do \
       fi; \
     done > /source-built-packages.txt
 
-RUN pip3 install --no-cache-dir --prefix=/usr \
-      -c /tmp/build-constraints.txt \
-      /wheels/*.whl
-
 RUN mkdir -p /configfiles/etc/cloudkitty && \
-    oslo-config-generator \
-      --config-file ${SERVICE_SRC}/etc/oslo-config-generator/cloudkitty.conf \
-      --output-file /configfiles/etc/cloudkitty/cloudkitty.conf && \
-    sed -i "/#pybasedir.*/d" /configfiles/etc/cloudkitty/cloudkitty.conf && \
     cp -a ${SERVICE_SRC}/etc/cloudkitty/api_paste.ini /configfiles/etc/cloudkitty/ && \
     cp -a ${SERVICE_SRC}/etc/cloudkitty/metrics.yml /configfiles/etc/cloudkitty/
 
@@ -81,12 +77,10 @@ RUN mkdir -p /etc/cloudkitty /var/log/cloudkitty /var/run/cloudkitty /var/lib/cl
     chmod 750 /var/log/cloudkitty && \
     chown -R cloudkitty:cloudkitty /etc/cloudkitty /var/log/cloudkitty /var/run/cloudkitty /var/lib/cloudkitty
 
-COPY --from=build /configfiles/etc/cloudkitty/cloudkitty.conf /etc/cloudkitty/cloudkitty.conf
 COPY --from=build /configfiles/etc/cloudkitty/api_paste.ini /etc/cloudkitty/api_paste.ini
 COPY --from=build /configfiles/etc/cloudkitty/metrics.yml /etc/cloudkitty/metrics.yml
 
-RUN chmod 640 /etc/cloudkitty/cloudkitty.conf \
-              /etc/cloudkitty/api_paste.ini \
+RUN chmod 640 /etc/cloudkitty/api_paste.ini \
               /etc/cloudkitty/metrics.yml && \
     chown -R root:cloudkitty /etc/cloudkitty
 

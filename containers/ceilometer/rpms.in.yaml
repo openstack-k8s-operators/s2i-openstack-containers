@@ -14,6 +14,7 @@ arches:
   - aarch64
 
 packages:
+  - cargo
   - gcc
   - gcc-c++
   - git-core
@@ -26,3 +27,4 @@ packages:
   - python3-libvirt
   - python3-setuptools
   - python3-wheel
+  - rust

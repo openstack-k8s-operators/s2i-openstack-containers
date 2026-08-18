@@ -2,6 +2,7 @@ ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
 
 # --- Build stage: compile wheels and collect upstream config ---
 FROM ${BASE_IMAGE} AS build
+
 ENV CONTAINER_NAME="ceilometer-compute"
 ARG SERVICE_SRC=/src/ceilometer
 
@@ -30,24 +31,36 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
       fi; \
     done
 
+# Build wheels from source packages (project repos and overrides)
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
-        pip3 wheel --no-cache-dir --no-build-isolation --no-deps \
-          --wheel-dir=/wheels "${pkg}"; \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
       fi; \
     done
+
+# Build wheels for all dependencies (from the constraints/lockfile)
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --find-links=/wheels/pkgs \
+      --wheel-dir=/wheels/deps -r /deps-upper-constraints.txt
 
 RUN for src_dir in /src/*/ /src/overrides/*/; do \
       if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
         pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
         commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
-        version=$(ls /wheels/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
         echo "${pkg_name},${commit},${version}"; \
       fi; \
     done > /source-built-packages.txt
 
+# Collect upstream config files
+RUN mkdir -p /configfiles/etc/ceilometer && \
+    cp -a ${SERVICE_SRC}/ceilometer/pipeline/data/pipeline.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/etc/ceilometer/polling.yaml /configfiles/etc/ceilometer/
+
 # --- Runtime stage ---
 FROM ${BASE_IMAGE}
+
 ENV CONTAINER_NAME="ceilometer-compute"
 LABEL summary="OpenStack Ceilometer Compute Agent" \
       io.k8s.description="Ceilometer compute polling agent container built from source with kolla interface"
@@ -65,16 +78,25 @@ COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps.txt
 RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     pip3 install --no-cache-dir --prefix=/usr \
       -c /deps-upper-constraints.txt \
-      /wheels/*.whl ${extrapkgs} && \
+      --find-links=/wheels/deps \
+      --find-links=/wheels/pkgs \
+      /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
 RUN mkdir -p /etc/ceilometer /var/log/ceilometer /var/lib/ceilometer /var/lib/ceilometer/tmp && \
     chmod 750 /var/log/ceilometer && \
     chown -R ceilometer:ceilometer /etc/ceilometer /var/log/ceilometer /var/lib/ceilometer
 
+# Install config files — each file listed explicitly
+COPY --from=build /configfiles/etc/ceilometer/pipeline.yaml /etc/ceilometer/pipeline.yaml
+COPY --from=build /configfiles/etc/ceilometer/polling.yaml /etc/ceilometer/polling.yaml
 COPY common/config/usr/share/ceilometer/ceilometer-dist.conf /usr/share/ceilometer/ceilometer-dist.conf
+COPY common/config/etc/sudoers.d/ceilometer /etc/sudoers.d/ceilometer
 
-RUN chmod 640 /usr/share/ceilometer/ceilometer-dist.conf && \
+RUN chmod 640 /etc/ceilometer/pipeline.yaml \
+              /etc/ceilometer/polling.yaml \
+              /usr/share/ceilometer/ceilometer-dist.conf && \
+    chmod 440 /etc/sudoers.d/ceilometer && \
     chown -R root:ceilometer /etc/ceilometer /usr/share/ceilometer
 
 USER ceilometer
