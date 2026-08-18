@@ -1,0 +1,350 @@
+---
+- name: Build and publish selected container images
+  hosts: builder
+  vars:
+    s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
+    s2i_ci_log_dir: "{{ s2i_ci_output_dir }}/logs/container-build"
+    s2i_ci_registry_connection_file: >-
+      {{ s2i_ci_output_dir }}/.s2i-ci-registry-connection.json
+    s2i_ci_workspace_root: "{{ zuul_user_dir | default(ansible_user_dir) }}"
+
+  tasks:
+    - name: Default optional selective provider inputs
+      ansible.builtin.set_fact:
+        s2i_ci_namespace: "{{ s2i_ci_namespace | default('openstack') }}"
+        s2i_ci_tag: >-
+          {{ s2i_ci_tag | default(
+               (zuul.change | default('build') | string) ~ '-' ~
+               (zuul.patchset | default('latest') | string)
+             ) }}
+        s2i_ci_stream: "{{ s2i_ci_stream | default('master') }}"
+        s2i_ci_parallel: >-
+          {{ s2i_ci_parallel |
+             default(ansible_facts.processor_vcpus | default(1)) }}
+        s2i_ci_images: "{{ s2i_ci_images | default('all') }}"
+        s2i_ci_image_mappings: "{{ s2i_ci_image_mappings | default({}) }}"
+
+    - name: Validate the selected container project
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_container_project in zuul.projects
+        fail_msg: The selected container project is not in the Zuul workspace
+
+    - name: Resolve the inventory-described container repository
+      ansible.builtin.set_fact:
+        s2i_ci_container_repo: >-
+          {{ s2i_ci_workspace_root }}/{{
+             zuul.projects[s2i_ci_container_project].src_dir }}
+
+    - name: Inspect the container build entry point on the builder
+      ansible.builtin.stat:
+        path: "{{ s2i_ci_container_repo }}/build.sh"
+        follow: true
+      register: s2i_ci_build_entry_point
+
+    - name: Canonicalize the builder workspace root
+      ansible.builtin.command:
+        argv: [realpath, --canonicalize-existing, "{{ s2i_ci_workspace_root }}"]
+      register: s2i_ci_workspace_root_realpath
+      changed_when: false
+      failed_when: false
+
+    - name: Canonicalize the container repository on the builder
+      ansible.builtin.command:
+        argv: [realpath, --canonicalize-existing, "{{ s2i_ci_container_repo }}"]
+      register: s2i_ci_container_repo_realpath
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve auto-detected images when s2i_ci_images is 'auto'
+      when: s2i_ci_images == 'auto'
+      ansible.builtin.include_tasks: resolve-auto-images.yaml
+
+    - name: Validate selective provider inputs
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_build_entry_point.stat.isreg | default(false)
+          - s2i_ci_workspace_root_realpath.rc == 0
+          - s2i_ci_container_repo_realpath.rc == 0
+          - s2i_ci_container_repo_realpath.stdout.startswith(
+              s2i_ci_workspace_root_realpath.stdout + '/')
+          - >-
+            s2i_ci_images == 'all' or
+            (s2i_ci_images is sequence and s2i_ci_images is not string and
+             s2i_ci_images | length > 0 and
+             s2i_ci_images | select('string') | list | length ==
+               s2i_ci_images | length and
+             s2i_ci_images |
+               reject('match', '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') |
+               list | length == 0 and
+             s2i_ci_images | unique | list | length == s2i_ci_images | length)
+          - s2i_ci_image_mappings is mapping
+          - s2i_ci_tag is string
+          - "',' not in s2i_ci_tag"
+        fail_msg: Selective provider inputs are invalid
+
+    - name: Record the requested target expression
+      ansible.builtin.set_fact:
+        s2i_ci_target_expression: >-
+          {{ 'all' if s2i_ci_images == 'all'
+             else ((['base'] + s2i_ci_images) | unique | list | join(',')) }}
+        s2i_ci_effective_image_mappings: {}
+        s2i_ci_mapping_sources: {}
+
+    - name: Resolve selected image targets
+      ansible.builtin.command:
+        argv:
+          - "{{ s2i_ci_container_repo }}/build.sh"
+          - resolve
+          - "{{ s2i_ci_target_expression }}"
+      args:
+        chdir: "{{ s2i_ci_container_repo }}"
+      register: s2i_ci_resolved_images
+      changed_when: false
+
+    - name: Record normalized selected targets
+      ansible.builtin.set_fact:
+        s2i_ci_selected_images: "{{ s2i_ci_resolved_images.stdout_lines }}"
+
+    - name: Validate optional mapping overrides
+      ansible.builtin.include_tasks: validate-mapping-overrides.yaml
+
+    - name: Load tracked image mappings
+      ansible.builtin.include_tasks: load-image-mappings.yaml
+
+    - name: Load and validate selected image metadata
+      ansible.builtin.include_tasks: image-metadata-item.yaml
+      loop: "{{ s2i_ci_selected_images }}"
+      loop_control:
+        loop_var: s2i_ci_image
+        label: "{{ s2i_ci_image }}"
+
+    - name: Validate effective deployment key ownership
+      ansible.builtin.include_tasks: validate-deployment-keys.yaml
+
+    - name: Load the normalized registry connection
+      ansible.builtin.slurp:
+        src: "{{ s2i_ci_registry_connection_file }}"
+      register: s2i_ci_registry_connection_data
+      no_log: true
+
+    - name: Decode the normalized registry connection
+      ansible.builtin.set_fact:
+        s2i_ci_registry: >-
+          {{ s2i_ci_registry_connection_data.content | b64decode | from_json }}
+      no_log: true
+
+    - name: Validate normalized registry connection
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_registry is mapping
+          - s2i_ci_registry.endpoint is string
+          - s2i_ci_registry.endpoint | length > 0
+          - s2i_ci_registry.public_host is string
+          - s2i_ci_registry.public_host | length > 0
+          - s2i_ci_registry.public_port | int > 0
+          - s2i_ci_registry.auth_file | default('') is string
+          - s2i_ci_registry.cert_dir | default('') is string
+
+    - name: Resolve intended exact image references before mutation
+      ansible.builtin.command:
+        argv:
+          - "{{ s2i_ci_container_repo }}/build.sh"
+          - refs
+          - "{{ s2i_ci_target_expression }}"
+        chdir: "{{ s2i_ci_container_repo }}"
+      environment:
+        STREAM: "{{ s2i_ci_stream }}"
+        REGISTRY: "{{ s2i_ci_registry.endpoint }}"
+        NAMESPACE: "{{ s2i_ci_namespace }}"
+        TAG: "{{ s2i_ci_tag }}"
+      register: s2i_ci_intended_refs
+      changed_when: false
+
+    - name: Record intended exact image references
+      ansible.builtin.set_fact:
+        s2i_ci_intended_images: >-
+          {{ s2i_ci_intended_refs.stdout_lines | reject('equalto', '') | list }}
+
+    - name: Validate intended exact image references
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_intended_images | length == s2i_ci_selected_images | length
+          - s2i_ci_intended_images | unique | list | length ==
+              s2i_ci_intended_images | length
+          - s2i_ci_intended_images |
+              select('match', '^' + s2i_ci_registry.endpoint | regex_escape +
+                     '/' + s2i_ci_namespace + '/[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$') |
+              list | length == s2i_ci_intended_images | length
+        fail_msg: Intended image references are incomplete or unsafe
+
+    - name: Persist intended references for partial-failure cleanup
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_log_dir }}/intended-images.json"
+        mode: "0644"
+        content: |
+          {{ {
+               'registry': s2i_ci_registry.endpoint,
+               'namespace': s2i_ci_namespace,
+               'images': s2i_ci_intended_images,
+               'selected_images': s2i_ci_selected_images,
+               'target': s2i_ci_target_expression
+             } | to_nice_json }}
+
+    - name: Stage Zuul source checkouts for speculative builds
+      ansible.builtin.include_tasks: stage-zuul-sources.yaml
+
+    - name: Build selected images
+      ansible.builtin.command:
+        argv:
+          - "{{ s2i_ci_container_repo }}/build.sh"
+          - build-parallel
+          - "{{ s2i_ci_target_expression }}"
+        chdir: "{{ s2i_ci_container_repo }}"
+      environment:
+        STREAM: "{{ s2i_ci_stream }}"
+        REGISTRY: "{{ s2i_ci_registry.endpoint }}"
+        NAMESPACE: "{{ s2i_ci_namespace }}"
+        TAG: "{{ s2i_ci_tag }}"
+        PARALLEL: "{{ s2i_ci_parallel | string }}"
+        BUILD_LOGS_DIR: "{{ s2i_ci_log_dir }}"
+      register: s2i_ci_build
+      changed_when: s2i_ci_build.rc == 0
+
+    - name: Save build command output
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_log_dir }}/build.log"
+        mode: "0644"
+        content: |
+          {{ s2i_ci_build.stdout }}
+          {{ s2i_ci_build.stderr }}
+
+    - name: Push selected images to the buildset registry
+      ansible.builtin.command:
+        argv:
+          - "{{ s2i_ci_container_repo }}/build.sh"
+          - push
+          - "{{ s2i_ci_target_expression }}"
+        chdir: "{{ s2i_ci_container_repo }}"
+      environment:
+        STREAM: "{{ s2i_ci_stream }}"
+        REGISTRY: "{{ s2i_ci_registry.endpoint }}"
+        NAMESPACE: "{{ s2i_ci_namespace }}"
+        TAG: "{{ s2i_ci_tag }}"
+        REGISTRY_AUTH_FILE: "{{ s2i_ci_registry.auth_file | default('') }}"
+        REGISTRY_CERT_DIR: "{{ s2i_ci_registry.cert_dir | default('') }}"
+      register: s2i_ci_push
+      changed_when: s2i_ci_push.rc == 0
+
+    - name: Save push command output
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_log_dir }}/push.log"
+        mode: "0644"
+        content: |
+          {{ s2i_ci_push.stdout }}
+          {{ s2i_ci_push.stderr }}
+
+    - name: Resolve successfully published image references
+      ansible.builtin.command:
+        argv:
+          - "{{ s2i_ci_container_repo }}/build.sh"
+          - refs
+          - "{{ s2i_ci_target_expression }}"
+        chdir: "{{ s2i_ci_container_repo }}"
+      environment:
+        STREAM: "{{ s2i_ci_stream }}"
+        REGISTRY: "{{ s2i_ci_registry.endpoint }}"
+        NAMESPACE: "{{ s2i_ci_namespace }}"
+        TAG: "{{ s2i_ci_tag }}"
+      register: s2i_ci_refs
+      changed_when: false
+
+    - name: Record exact builder-local published image references
+      ansible.builtin.set_fact:
+        s2i_ci_local_published_images: >-
+          {{ s2i_ci_refs.stdout_lines | reject('equalto', '') | list }}
+
+    - name: Require intended and published references to match
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_local_published_images == s2i_ci_intended_images
+        fail_msg: Published references differ from the pre-recorded intent
+
+    - name: Record the public buildset registry endpoint
+      ansible.builtin.set_fact:
+        s2i_ci_public_registry_endpoint: >-
+          {{ s2i_ci_registry.public_host }}:{{ s2i_ci_registry.public_port }}
+
+    - name: Convert published references to the public buildset endpoint
+      ansible.builtin.set_fact:
+        s2i_ci_published_images: >-
+          {{ s2i_ci_local_published_images |
+             map('regex_replace',
+                 '^' + (s2i_ci_registry.endpoint | regex_escape),
+                 s2i_ci_public_registry_endpoint) | list }}
+
+    - name: Validate public exact published references
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_published_images | length ==
+              s2i_ci_local_published_images | length
+          - s2i_ci_published_images |
+              select('match', '^' +
+                     (s2i_ci_public_registry_endpoint | regex_escape) + '/') |
+              list | length == s2i_ci_published_images | length
+          - s2i_ci_published_images |
+              select('search', s2i_ci_registry.endpoint | regex_escape) |
+              list | length == 0
+        fail_msg: Public references must not expose the builder-local alias
+
+    - name: Pull published images back from the registry
+      ansible.builtin.command:
+        argv: >-
+          {{ ['podman', 'pull']
+             + (['--authfile', s2i_ci_registry.auth_file]
+                if s2i_ci_registry.auth_file | default('') | length > 0 else [])
+             + (['--cert-dir', s2i_ci_registry.cert_dir]
+                if s2i_ci_registry.cert_dir | default('') | length > 0 else [])
+             + [item] }}
+      loop: "{{ s2i_ci_local_published_images }}"
+      changed_when: true
+
+    - name: Initialize exact reference expansion
+      ansible.builtin.set_fact:
+        s2i_ci_target_references: {}
+        s2i_ci_local_target_references: {}
+        s2i_ci_custom_container_images: {}
+
+    - name: Map selected targets to exact references
+      ansible.builtin.include_tasks: published-image-item.yaml
+      loop: "{{ s2i_ci_selected_images }}"
+      loop_control:
+        loop_var: s2i_ci_image
+        index_var: s2i_ci_image_index
+        label: "{{ s2i_ci_image }}"
+
+    - name: Expand exact references into deployment keys
+      ansible.builtin.include_tasks: deployment-map-item.yaml
+      loop: "{{ s2i_ci_selected_images }}"
+      loop_control:
+        loop_var: s2i_ci_image
+        label: "{{ s2i_ci_image }}"
+
+    - name: Save published image metadata
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_log_dir }}/published-images.json"
+        mode: "0644"
+        content: |
+          {{ {
+               'registry': s2i_ci_public_registry_endpoint,
+               'namespace': s2i_ci_namespace,
+               'tag': s2i_ci_tag,
+               'target': s2i_ci_target_expression,
+               'stream': s2i_ci_stream,
+               'selected_images': s2i_ci_selected_images,
+               'images': s2i_ci_published_images,
+               'image_mappings': s2i_ci_effective_image_mappings,
+               'mapping_sources': s2i_ci_mapping_sources,
+               'custom_container_images':
+                 s2i_ci_custom_container_images
+             } | to_nice_json }}

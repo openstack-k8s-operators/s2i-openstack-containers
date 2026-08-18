@@ -451,6 +451,111 @@ resolve_targets() {
   echo "${resolved[@]}"
 }
 
+# Given a canonical project URL (or suffix), find all images whose
+# sources.txt references it.  Prints matching image targets, one per line.
+# Used by the content provider to implement `s2i_ci_images: auto`.
+# Args: <project-url-or-suffix> [stream]
+auto_detect() {
+  local needle="$1"
+  local stream="${2:-}"
+  local matches=()
+
+  if [[ -z "${needle}" ]]; then
+    echo "ERROR: auto-detect requires a project URL or suffix" >&2
+    return 1
+  fi
+
+  for sources_file in "${CONTAINERS_DIR}"/*/sources.txt \
+                       "${CONTAINERS_DIR}"/*/*/sources.txt; do
+    [[ -f "${sources_file}" ]] || continue
+
+    while IFS=' ' read -r entry_stream name url _branch _hash; do
+      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+      [[ "${name}" == "upper-constraints" ]] && continue
+      [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
+
+      # Match the needle against the URL's path (strip scheme + host,
+      # strip trailing .git).  Supports full URLs and short forms like
+      # "openstack/tempest".
+      local url_path="${url#*://}"   # remove scheme
+      url_path="${url_path#*/}"      # remove hostname
+      url_path="${url_path%.git}"    # remove .git suffix
+      if [[ "${url_path}" == "${needle}" ||
+            "${url}" == "${needle}" ||
+            "${url%.git}" == "${needle}" ]]; then
+        local rel="${sources_file#"${CONTAINERS_DIR}"/}"
+        rel="${rel%/sources.txt}"
+        local project="${rel%%/*}"
+        # Resolve to actual image targets under this project
+        for img in $(discover_images); do
+          if [[ "${img}" == "${project}/"* ]] || [[ "${img}" == "${project}" ]]; then
+            local already=0
+            for m in "${matches[@]+"${matches[@]}"}"; do
+              [[ "${m}" == "${img}" ]] && already=1 && break
+            done
+            [[ ${already} -eq 0 ]] && matches+=("${img}")
+          fi
+        done
+      fi
+    done < "${sources_file}"
+  done
+
+  if [[ ${#matches[@]} -eq 0 ]]; then
+    echo "ERROR: no images reference '${needle}'" >&2
+    return 1
+  fi
+
+  printf '%s\n' "${matches[@]}"
+}
+
+# List source dependencies for an image target.
+# Outputs pipe-delimited records: name|canonical_project|url|dest_dir
+# Used by Ansible playbooks to stage Zuul sources without re-parsing
+# sources.txt themselves (build.sh is the single source of truth).
+# Args: <image-target> [stream]
+list_sources() {
+  local target="$1"
+  local stream="${2:-${STREAM:-}}"
+  local project="${target%%/*}"
+
+  if [[ -z "${target}" ]]; then
+    echo "ERROR: list-sources requires an image target" >&2
+    return 1
+  fi
+
+  local sources_files=()
+  if [[ "${target}" == "base" ]]; then
+    [[ -f "${CONTAINERS_DIR}/base/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/base/sources.txt")
+  else
+    [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/${project}/sources.txt")
+    [[ -f "${CONTAINERS_DIR}/${target}/sources.txt" ]] && \
+      sources_files+=("${CONTAINERS_DIR}/${target}/sources.txt")
+  fi
+
+  for sources_file in "${sources_files[@]}"; do
+    while IFS=' ' read -r entry_stream name url _branch _hash; do
+      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+      [[ "${name}" == "upper-constraints" ]] && continue
+      [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
+
+      local url_path="${url#*://}"
+      url_path="${url_path#*/}"
+      url_path="${url_path%.git}"
+
+      local dest_dir
+      if [[ "${target}" == "base" ]]; then
+        dest_dir="${CONTAINERS_DIR}/base/src/${name}"
+      else
+        dest_dir="${CONTAINERS_DIR}/${project}/src/${name}"
+      fi
+
+      echo "${name}|${url_path}|${url}|${dest_dir}"
+    done < "${sources_file}"
+  done
+}
+
 # Clone a repo at a branch tip (or tag) and store the resolved commit hash
 # in _CLONE_RESULT.  Must NOT be called via command substitution ($(...))
 # because _AUTO_CLONED assignments would be lost in the subshell.
@@ -1329,8 +1434,22 @@ case "${ACTION}" in
   list)
     list_images
     ;;
+  auto-detect)
+    if [[ ${#TARGETS[@]} -eq 0 || "${TARGETS[0]}" == "all" ]]; then
+      echo "Usage: $0 auto-detect <project-url-or-suffix> [stream]" >&2
+      exit 1
+    fi
+    auto_detect "${TARGETS[0]}" "${TARGETS[1]:-}"
+    ;;
+  list-sources)
+    if [[ ${#TARGETS[@]} -eq 0 || "${TARGETS[0]}" == "all" ]]; then
+      echo "Usage: STREAM=<name> $0 list-sources <image-target>" >&2
+      exit 1
+    fi
+    list_sources "${TARGETS[0]}" "${TARGETS[1]:-}"
+    ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|update-sources|update-lockfiles|install-deps|list|auto-detect|list-sources} [target ...]"
     echo ""
     echo "Images (discovered from containers/):"
     for dir_name in $(discover_images); do

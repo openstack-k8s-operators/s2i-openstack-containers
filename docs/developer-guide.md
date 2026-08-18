@@ -438,3 +438,67 @@ for a commit shares the same `master-<sha>` tag and consistent OS packages.
    STREAM=master ./build.sh update-sources <project>
    STREAM=master ./build.sh build <project>
    ```
+
+## Speculative builds (Zuul integration)
+
+When a patch is submitted against an upstream OpenStack project (e.g.,
+`openstack/tempest`), the CI pipeline can automatically build fresh
+container images incorporating that patch. This is called a **speculative
+build**.
+
+### Auto-detection
+
+The content provider job accepts `s2i_ci_images: auto` to automatically
+determine which images need rebuilding based on the triggering project:
+
+```yaml
+# In a Zuul job definition
+vars:
+  s2i_ci_images: auto
+```
+
+Under the hood, auto-detection:
+
+1. Inspects `zuul.items` to find the projects in the speculative change
+   queue.
+2. Runs `build.sh auto-detect <canonical-project> [stream]` for each,
+   which scans `sources.txt` files to find which images reference that
+   project.
+3. Replaces `s2i_ci_images` with the de-duplicated list of affected
+   image targets.
+
+You can test auto-detection locally:
+
+```bash
+# Which images would be rebuilt for a tempest patch?
+PARALLEL=1 ./build.sh auto-detect openstack/tempest master
+
+# Full URL form also works
+PARALLEL=1 ./build.sh auto-detect https://opendev.org/openstack/neutron.git
+```
+
+### Source staging
+
+After auto-detection resolves the image list, the pipeline stages Zuul's
+source checkouts into the container build contexts. This replaces the
+pinned source with the patched version so the built image includes the
+speculative change.
+
+The staging playbook (`shared/stage-zuul-sources.yaml`) delegates all
+`sources.txt` parsing to `build.sh list-sources`, keeping build.sh as the
+single source of truth for the source manifest format.
+
+### Querying source dependencies
+
+`build.sh list-sources` prints pipe-delimited records for all source
+dependencies of an image target:
+
+```bash
+PARALLEL=1 ./build.sh list-sources tempest/tempest master
+# Output: name|canonical_project|url|dest_dir
+# tempest|openstack/tempest|https://opendev.org/openstack/tempest.git|/.../containers/tempest/src/tempest
+# barbican-tempest-plugin|openstack/barbican-tempest-plugin|https://...
+```
+
+This is used by the Ansible playbooks but is also useful for debugging
+which upstream repos feed into a given image.
