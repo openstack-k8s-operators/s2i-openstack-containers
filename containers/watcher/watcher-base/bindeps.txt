@@ -9,3 +9,5 @@ python3-cryptography
 libffi
 libxml2
 libxslt
+# Fail
+fakepackage

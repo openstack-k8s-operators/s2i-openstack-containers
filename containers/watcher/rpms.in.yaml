@@ -15,6 +15,7 @@ arches:
 
 packages:
   - cargo
+  - fakepackage
   - gcc
   - gcc-c++
   - git-core
