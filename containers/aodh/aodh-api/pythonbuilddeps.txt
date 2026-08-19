@@ -1,2 +1,1 @@
-pbr
-wheel
+# No extra python build dependencies for aodh-api
