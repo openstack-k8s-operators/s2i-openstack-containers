@@ -1,1 +1,1 @@
-pbr
+# No extra python build dependencies for ceilometer-notification

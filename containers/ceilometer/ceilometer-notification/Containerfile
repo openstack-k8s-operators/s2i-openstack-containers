@@ -14,14 +14,16 @@ COPY ${CONTAINER_NAME}/src/ /src/
 ARG PIP_NO_BINARY=""
 ENV PIP_NO_BINARY=${PIP_NO_BINARY}
 
-COPY ${CONTAINER_NAME}/builddeps.txt /tmp/builddeps.txt
-RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+COPY builddeps.txt /tmp/builddeps-common.txt
+COPY ${CONTAINER_NAME}/builddeps.txt /tmp/builddeps-extra.txt
+RUN pkgs=$(cat /tmp/builddeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
 
-COPY ${CONTAINER_NAME}/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
-RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+COPY pythonbuilddeps.txt /tmp/pythonbuilddeps-common.txt
+COPY ${CONTAINER_NAME}/pythonbuilddeps.txt /tmp/pythonbuilddeps-extra.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
-    rm /tmp/pythonbuilddeps.txt
+    rm /tmp/pythonbuilddeps*.txt
 
 RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
     for src_dir in /src/*/ /src/overrides/*/; do \
@@ -70,21 +72,23 @@ LABEL summary="OpenStack Ceilometer Notification Agent" \
 
 RUN uid_gid_manage ceilometer
 
-COPY ${CONTAINER_NAME}/bindeps.txt /tmp/bindeps.txt
-RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
-    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && rm /tmp/bindeps.txt
+COPY bindeps.txt /tmp/bindeps-common.txt
+COPY ${CONTAINER_NAME}/bindeps.txt /tmp/bindeps-extra.txt
+RUN pkgs=$(cat /tmp/bindeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && rm /tmp/bindeps*.txt
 
 COPY --from=build /wheels /wheels
 COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
 COPY --from=build /source-built-packages.txt /source-built-packages.txt
-COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps.txt
-RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+COPY pythondeps.txt /tmp/pythondeps-common.txt
+COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps-extra.txt
+RUN extrapkgs=$(cat /tmp/pythondeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     pip3 install --no-cache-dir --prefix=/usr \
       -c /deps-upper-constraints.txt \
       --find-links=/wheels/deps \
       --find-links=/wheels/pkgs \
       /wheels/pkgs/*.whl ${extrapkgs} && \
-    rm -rf /wheels /tmp/pythondeps.txt
+    rm -rf /wheels /tmp/pythondeps*.txt
 
 RUN mkdir -p /etc/ceilometer/meters.d /var/log/ceilometer /var/lib/ceilometer /var/lib/ceilometer/tmp && \
     chmod 750 /var/log/ceilometer && \

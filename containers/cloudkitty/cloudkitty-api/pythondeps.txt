@@ -1,4 +1,1 @@
-# Database driver (mysql extra for oslo.db)
-oslo.db[mysql]
-# Process utilities (tcib dependency)
-psutil
+# No extra python dependencies for cloudkitty-api

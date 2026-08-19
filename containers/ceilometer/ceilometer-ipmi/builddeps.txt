@@ -1,14 +1,1 @@
-git-core
-gcc
-gcc-c++
-python3-devel
-python3-setuptools
-python3-wheel
-libffi-devel
-openssl-devel
-libxml2-devel
-libxslt-devel
-# Rust toolchain to build bcrypt from source (PIP_NO_BINARY=:all:)
-rust
-# ... and cargo to build rpds-py from source
-cargo
+# No extra build dependencies for ceilometer-ipmi

@@ -1,2 +1,1 @@
-# Caching backend
-oslo.cache[dogpile]
+# No extra python dependencies for ceilometer-notification
