@@ -1,0 +1,33 @@
+---
+- name: Prepare consumer host for s2i registry access
+  hosts: consumer
+  tasks:
+    - name: Ensure Podman is installed and usable
+      ansible.builtin.include_role:
+        name: ensure-podman
+      vars:
+        ensure_podman_rootless: false
+        ensure_podman_validate: true
+
+    - name: Ensure registries.conf.d exists
+      become: true
+      ansible.builtin.file:
+        path: /etc/containers/registries.conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure insecure registry trust for the s2i registry
+      become: true
+      ansible.builtin.blockinfile:
+        state: present
+        insertafter: EOF
+        dest: /etc/containers/registries.conf.d/99-s2i-registry.conf
+        create: true
+        mode: "0644"
+        content: |-
+          [[registry]]
+          location = "{{ s2i_content_provider_registry_ip_port }}"
+          insecure = true
+          blocked = false
+          mirror-by-digest-only = false
+          prefix = ""

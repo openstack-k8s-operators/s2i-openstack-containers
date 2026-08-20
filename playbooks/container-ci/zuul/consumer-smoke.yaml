@@ -1,0 +1,109 @@
+---
+- name: Validate content-provider published images
+  hosts: consumer
+  gather_facts: false
+  vars:
+    s2i_smoke_output_dir: "{{ ansible_user_dir }}/zuul-output/logs/consumer-smoke"
+
+  tasks:
+    - name: Ensure log directory exists
+      ansible.builtin.file:
+        path: "{{ s2i_smoke_output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Require content provider metadata
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_content is defined
+          - s2i_ci_content is mapping
+          - s2i_ci_content.registry is string
+          - s2i_ci_content.registry | length > 0
+          - s2i_ci_content.images is sequence
+          - s2i_ci_content.images | length > 0
+          - s2i_ci_content.selected_images is sequence
+          - s2i_ci_content.custom_container_images is mapping
+          - s2i_content_provider_os_custom_container_images is defined
+          - s2i_content_provider_os_custom_container_images is mapping
+        fail_msg: >-
+          Content provider metadata is missing or malformed.
+          Verify the content-provider job completed and paused successfully.
+
+    - name: Display content provider metadata
+      ansible.builtin.debug:
+        msg: |
+          Registry: {{ s2i_ci_content.registry }}
+          Stream: {{ s2i_ci_content.stream }}
+          Tag: {{ s2i_ci_content.tag }}
+          Selected images: {{ s2i_ci_content.selected_images | join(', ') }}
+          Published refs ({{ s2i_ci_content.images | length }}):
+          {% for ref in s2i_ci_content.images %}
+            - {{ ref }}
+          {% endfor %}
+          Deployment keys: {{ s2i_content_provider_os_custom_container_images.keys() | list | sort | join(', ') }}
+
+    - name: Pull all published images from the s2i registry
+      ansible.builtin.command:
+        argv:
+          - podman
+          - pull
+          - --tls-verify=false
+          - "{{ item }}"
+      loop: "{{ s2i_ci_content.images }}"
+      register: s2i_smoke_pulls
+      changed_when: true
+
+    - name: Inspect each pulled image
+      ansible.builtin.command:
+        argv:
+          - podman
+          - image
+          - inspect
+          - --format
+          - "{% raw %}{{ .Id }} {{ .Architecture }} {{ .Os }} {{ .Size }}{% endraw %}"
+          - "{{ item }}"
+      loop: "{{ s2i_ci_content.images }}"
+      register: s2i_smoke_inspections
+      changed_when: false
+
+    - name: Display image inspection results
+      ansible.builtin.debug:
+        msg: "{{ item.item | basename }}: {{ item.stdout }}"
+      loop: "{{ s2i_smoke_inspections.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Validate deployment key references resolve to pulled images
+      ansible.builtin.command:
+        argv:
+          - podman
+          - image
+          - exists
+          - "{{ item.value }}"
+      loop: "{{ s2i_content_provider_os_custom_container_images | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      changed_when: false
+
+    - name: Save consumer validation results
+      ansible.builtin.copy:
+        dest: "{{ s2i_smoke_output_dir }}/consumer-smoke-results.json"
+        mode: "0644"
+        content: |
+          {{ {
+               'registry': s2i_ci_content.registry,
+               'stream': s2i_ci_content.stream,
+               'images_pulled': s2i_ci_content.images | length,
+               'deployment_keys':
+                 s2i_content_provider_os_custom_container_images.keys() | list | sort,
+               'selected_images': s2i_ci_content.selected_images,
+               'validation': 'passed'
+             } | to_nice_json }}
+
+    - name: Report successful consumer validation
+      ansible.builtin.debug:
+        msg: >-
+          Consumer smoke passed: {{ s2i_ci_content.images | length }} images
+          pulled and validated from {{ s2i_ci_content.registry }},
+          {{ s2i_content_provider_os_custom_container_images | length }} deployment
+          keys verified.

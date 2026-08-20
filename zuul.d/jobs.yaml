@@ -36,3 +36,21 @@
       s2i_ci_images: all
       s2i_ci_stream: master
       s2i_ci_content_provider: true
+
+- job:
+    name: s2i-openstack-container-consumer-smoke
+    parent: base
+    description: |
+      Pull and validate container images from the content provider on a
+      fresh consumer node. Verifies registry access, image structure,
+      and deployment key mappings.
+
+      Depends on ``s2i-openstack-container-content-provider``.
+    nodeset:
+      nodes:
+        - name: consumer
+          label: cloud-centos-10-stream
+    required-projects:
+      - opendev.org/zuul/zuul-jobs
+    pre-run: playbooks/container-ci/zuul/consumer-smoke-pre.yaml
+    run: playbooks/container-ci/zuul/consumer-smoke.yaml

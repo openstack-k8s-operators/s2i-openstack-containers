@@ -10,3 +10,7 @@
               - ^LICENSE.*$
         - s2i-openstack-container-content-provider:
             irrelevant-files: *documentation-only
+        - s2i-openstack-container-consumer-smoke:
+            irrelevant-files: *documentation-only
+            dependencies:
+              - s2i-openstack-container-content-provider
