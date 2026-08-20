@@ -33,6 +33,23 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
       fi; \
     done
 
+# Drop excluded upstream requirements before building the service wheel, so the
+# wheel's own metadata (Requires-Dist) cannot pull them back in at install time.
+# Mirrors the RDO ceilometer distgit spec, which strips the same packages from
+# requirements.txt in %prep. See docs/excluding-requirements.md.
+COPY excluded-requirements.txt /tmp/excluded-requirements.txt
+# Pre-strip comments, inline whitespace, and blank lines inline so the loop sees
+# one bare package name per line -- identical to the host-side strip in build.sh.
+RUN sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' /tmp/excluded-requirements.txt | \
+    while IFS= read -r pkg; do \
+      for req in /src/*/requirements.txt /src/overrides/*/requirements.txt; do \
+        if [ -f "${req}" ]; then \
+          sed -i -E "/^${pkg}([[:space:]<>=!~;,#[]|\$)/Id" "${req}"; \
+        fi; \
+      done; \
+    done && \
+    rm /tmp/excluded-requirements.txt
+
 # Build wheels from source packages (project repos and overrides)
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \

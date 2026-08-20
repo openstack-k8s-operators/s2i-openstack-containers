@@ -1,6 +1,5 @@
 build==1.5.0
 calver==2025.10.20
-cffi==2.0.0
 cython==3.2.9
 flit-core==3.12.0
 flit-core==4.0.2
@@ -13,7 +12,6 @@ pathspec==1.1.1
 pbr==7.0.3
 pluggy==1.6.0
 poetry-core==2.4.1
-pycparser==3.0
 pyproject-hooks==1.2.0
 semantic-version==2.10.0
 setuptools-rust==1.13.0

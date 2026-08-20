@@ -1,0 +1,11 @@
+# Runtime requirements stripped from the upstream ceilometer requirements.txt
+# before locking/building, mirroring the RDO ceilometer distgit spec
+# (%global excluded_reqs ...). One package name per line; '#' comments and
+# blank lines are ignored. Matching is case-insensitive and anchored to the
+# start of the line.
+#
+# awscurl is not used in our deployments and pulls a heavy transitive tree
+# (awscrt, boto3, s3transfer, configargparse) that must otherwise be compiled
+# from source under PIP_NO_BINARY=:all: (awscrt needs cmake; configargparse
+# uses legacy setuptools-scm setup_requires). The distgit drops it the same way.
+awscurl
