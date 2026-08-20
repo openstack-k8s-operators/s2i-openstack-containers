@@ -249,6 +249,33 @@ clone_at_hash() {
   _AUTO_CLONED["${dest}"]=1
 }
 
+# Strip excluded runtime requirements from a cloned source tree.
+# Mirrors the distgit spec's %prep exclusion (e.g. the RDO ceilometer spec drops
+# awscurl via `sed -i /^awscurl.*/d requirements.txt`). Reads
+# containers/<project>/excluded-requirements.txt (one package name per line;
+# '#' comments and blank lines ignored) and deletes matching lines from the
+# source's requirements.txt. Applied at clone time so the exclusion feeds both
+# the generated lockfile (pip-compile input) and the service wheel's metadata.
+# Idempotent: safe to re-run against an already-processed clone.
+apply_requirement_exclusions() {
+  local project="$1"
+  local src_dir="$2"
+  local exclude_file="${CONTAINERS_DIR}/${project}/excluded-requirements.txt"
+  local req_file="${src_dir}/requirements.txt"
+
+  [[ -f "${exclude_file}" && -f "${req_file}" ]] || return 0
+
+  local pkg
+  sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' "${exclude_file}" | \
+  while IFS= read -r pkg; do
+    echo "--- Excluding requirement '${pkg}' from ${req_file##*/} in ${src_dir} ---"
+    # Match the package at the start of a line, followed by a version
+    # specifier, extra, marker, whitespace, comment, or end-of-line, so a
+    # prefix like 'awscurl-foo' is not removed by mistake. Case-insensitive.
+    sed -i -E "/^${pkg}([[:space:]<>=!~;,#[]|\$)/Id" "${req_file}"
+  done
+}
+
 # Process sources.txt files for a stream.
 # Project-level sources → containers/<project>/src/<name>/
 # Image-level sources → containers/<project>/<image>/src/<name>/
@@ -267,6 +294,7 @@ ensure_sources_for_stream() {
       [[ "${entry_stream}" != "${stream}" ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
       clone_at_hash "${project_src_dir}/${name}" "${url}" "${pinned_hash}"
+      apply_requirement_exclusions "${project}" "${project_src_dir}/${name}"
     done < "${project_sources}"
   fi
 
@@ -279,6 +307,7 @@ ensure_sources_for_stream() {
       [[ "${entry_stream}" != "${stream}" ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
       clone_at_hash "${image_src_dir}/${name}" "${url}" "${pinned_hash}"
+      apply_requirement_exclusions "${project}" "${image_src_dir}/${name}"
     done < "${image_sources}"
   fi
 }
@@ -616,6 +645,10 @@ update_sources_file() {
     else
       clone_at_branch "${src_dir}/${name}" "${url}" "${branch}"
       new_hash="${_CLONE_RESULT}"
+      # Strip excluded requirements from the freshly-cloned tree so the lockfile
+      # generated next by pip-compile omits them. Pre-existing checkouts (handled
+      # above) are intentionally left untouched. Mirrors ensure_sources_for_stream.
+      apply_requirement_exclusions "$(basename "${project_dir}")" "${src_dir}/${name}"
     fi
 
     if [[ -z "${new_hash}" ]]; then
