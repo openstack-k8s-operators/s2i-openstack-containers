@@ -1,0 +1,6 @@
+#!/usr/bin/python3 -sP
+# Replaces the placement-api PBR script removed upstream; see
+# releasenotes/notes/remove-wsgi-scripts-3823627039fa98bc.yaml.
+# placement-operator httpd.conf uses WSGIScriptAlias / /usr/bin/placement-api
+
+from placement.wsgi.api import application

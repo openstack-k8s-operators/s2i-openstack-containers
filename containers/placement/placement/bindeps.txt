@@ -1,0 +1,6 @@
+python3
+python3-pip
+# Apache WSGI server for placement-api
+httpd
+mod_ssl
+python3-mod_wsgi
