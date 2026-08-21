@@ -1,0 +1,117 @@
+# OpenStack Nova Compute
+#
+# The dataplane hypervisor agent. Heaviest and most host-coupled image in
+# this project: libvirt/qemu, os-vif (openvswitch), os-brick (iSCSI/NFS/
+# multipath/NVMe), Ceph, and vTPM.
+#
+# Known open items (see plan/notes, not fully resolved by this Containerfile
+# alone):
+# - python3-libvirt's correctness depends on the *host's* actual libvirt
+#   version at deploy time, which lives outside this build entirely.
+
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# --- Build stage: compile wheels and collect upstream config ---
+FROM ${BASE_IMAGE} AS build
+
+ARG SERVICE_SRC=/src/nova
+
+# Copy constraints file and all source repos into the build stage
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY src/ /src/
+COPY nova-compute/src/ /src/
+
+ENV MATURIN_NO_INSTALL_RUST=true
+
+COPY builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && rm /tmp/builddeps.txt
+
+COPY pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
+    rm /tmp/pythonbuilddeps.txt
+
+RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
+    for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        sed -i "/^${pkg_name}[=!<>]/Id" /tmp/build-constraints.txt; \
+      fi; \
+    done
+
+# First build the wheels for the packages themselves
+RUN for pkg in /src/*/ /src/overrides/*/; do \
+      if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
+      fi; \
+    done
+
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --find-links=/wheels/pkgs \
+      --wheel-dir=/wheels/deps -r /tmp/build-constraints.txt
+
+RUN for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        echo "${pkg_name},${commit},${version}"; \
+      fi; \
+    done > /source-built-packages.txt
+
+# --- Runtime stage: install from wheels ---
+FROM ${BASE_IMAGE}
+
+LABEL summary="OpenStack Nova Compute" \
+      io.k8s.description="Nova compute container built from source with kolla interface"
+
+# first — uid_gid_manage supports multiple names in one call, applied in
+# order, so this creates all four in the right sequence.
+RUN uid_gid_manage qemu libvirt tss nova
+
+COPY bindeps.txt /tmp/bindeps.txt
+COPY nova-compute/bindeps.txt /tmp/bindeps-extra.txt
+RUN pkgs=$(cat /tmp/bindeps.txt /tmp/bindeps-extra.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm -f /tmp/bindeps.txt /tmp/bindeps-extra.txt
+
+COPY --from=build /wheels /wheels
+COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
+COPY --from=build /source-built-packages.txt /source-built-packages.txt
+COPY nova-compute/pythondeps.txt /tmp/pythondeps.txt
+RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    pip3 install --no-cache-dir --prefix=/usr \
+      -c /deps-upper-constraints.txt \
+      --find-links=/wheels/deps \
+      --find-links=/wheels/pkgs \
+      /wheels/pkgs/*.whl ${extrapkgs} && \
+    rm -rf /wheels /tmp/pythondeps.txt
+
+RUN mkdir -p /etc/nova && \
+    mkdir -p /var/log/nova && chmod 750 /var/log/nova && \
+    mkdir -p /var/lib/nova/instances /var/lib/nova/tmp && \
+    mkdir -p /etc/nova/rootwrap.d && \
+    mkdir -p /usr/share/nova/rootwrap && \
+    chown -R nova:nova /etc/nova /var/lib/nova && \
+    chown nova:root /var/log/nova
+
+# From distgit Source files (repo-maintained, see config/ in this directory):
+COPY nova-compute/config/etc/sudoers.d/nova /etc/sudoers.d/nova
+
+# Upstream nova's own rootwrap config (etc/nova/ in the nova source tree,
+# not RDO distgit) - needed for oslo.privsep to drop privileges when
+# nova-compute plugs VIFs / manages volumes. Must stay root-owned; see
+# rootwrap's own file-header requirement.
+COPY nova-compute/config/etc/nova/rootwrap.conf /etc/nova/rootwrap.conf
+COPY nova-compute/config/etc/nova/rootwrap.d/compute.filters /etc/nova/rootwrap.d/compute.filters
+
+# Set config file / directory permissions matching the spec
+RUN chmod 440 /etc/sudoers.d/nova && \
+    chown -R nova:nova /etc/nova && \
+    chown root:root /etc/nova/rootwrap.conf /etc/nova/rootwrap.d/compute.filters && \
+    chmod 644 /etc/nova/rootwrap.conf /etc/nova/rootwrap.d/compute.filters
+
+USER nova

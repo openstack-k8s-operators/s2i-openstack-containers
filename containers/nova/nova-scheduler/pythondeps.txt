@@ -1,0 +1,5 @@
+# Database driver (mysql extra for oslo.db) — nova-scheduler reads placement/
+# cell mapping data
+oslo.db[mysql]
+# Caching backend (dogpile extra for oslo.cache)
+oslo.cache[dogpile]

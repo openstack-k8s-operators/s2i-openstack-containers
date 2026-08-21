@@ -20,6 +20,7 @@ packages:
   - git-core
   - httpd
   - libffi-devel
+  - libvirt-client
   - libxml2-devel
   - libxslt-devel
   - mod_ssl
@@ -27,7 +28,9 @@ packages:
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
+  - python3-libvirt
   - python3-mod_wsgi
   - python3-pip
   - python3-setuptools
+  - qemu-kvm-block-rbd
   - rust

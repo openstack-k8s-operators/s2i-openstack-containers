@@ -27,7 +27,7 @@ tomlkit==0.15.1
 trove-classifiers==2026.1.14.14
 trove-classifiers==2026.6.1.19
 typing-extensions==4.15.0
-vcs-versioning==2.3.0
+vcs-versioning==2.3.1
 wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:

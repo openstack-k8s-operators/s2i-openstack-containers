@@ -1,0 +1,4 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+# Caching backend (dogpile extra for oslo.cache)
+oslo.cache[dogpile]
