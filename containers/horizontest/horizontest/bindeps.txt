@@ -1,0 +1,16 @@
+python3
+python3-pip
+firefox
+xorg-x11-server-Xvfb
+git-core
+tar
+# Pinned to 43.x to match upper-constraints.txt (cryptography==43.0.3).
+# The default el10 RPM ships 49.x which conflicts with pyOpenSSL 24.2.1
+# (requires cryptography<44), causing an ImportError at runtime. Bump this
+# pin once pyOpenSSL >= 25.0 lands in upper-constraints (drops the <44 cap).
+python3-cryptography-43.0.0-4.el10
+# Pillow runtime libraries (transitive dep of horizon)
+libjpeg-turbo
+freetype
+libwebp
+libtiff

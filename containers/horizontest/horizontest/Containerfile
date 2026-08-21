@@ -1,0 +1,71 @@
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# --- Build stage: pre-build wheels ---
+FROM ${BASE_IMAGE} AS build
+
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+
+ARG PIP_NO_BINARY=""
+ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+# Required to build Rust-based Python packages from source
+ENV MATURIN_NO_INSTALL_RUST=true
+
+COPY horizontest/builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
+
+COPY horizontest/pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
+    rm /tmp/pythonbuilddeps.txt
+
+# Build wheels for all packages pinned in the lockfile so the runtime stage
+# can install without build tools or network access.
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --wheel-dir=/wheels -r /deps-upper-constraints.txt
+
+# --- Runtime stage ---
+FROM ${BASE_IMAGE}
+
+LABEL summary="OpenStack Horizon Selenium test runner" \
+      io.k8s.description="Runs Horizon's pytest/selenium UI integration tests against a live dashboard (test-operator HorizonTest)"
+
+RUN uid_gid_manage horizontest
+
+COPY horizontest/bindeps.txt /tmp/bindeps.txt
+RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm /tmp/bindeps.txt
+
+COPY --from=build /wheels /wheels
+COPY --from=build /deps-upper-constraints.txt /deps-upper-constraints.txt
+COPY horizontest/pythondeps.txt /tmp/pythondeps.txt
+RUN pkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    pip3 install --no-cache-dir --prefix=/usr \
+      -c /deps-upper-constraints.txt \
+      --find-links=/wheels \
+      ${pkgs} && \
+    rm -rf /wheels /tmp/pythondeps.txt
+
+RUN curl -s -L \
+      https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux64.tar.gz \
+    | tar -zxvf - -C /usr/local/bin/
+
+RUN curl -OL http://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img \
+      -o /usr/local/share/cirros-0.6.2-x86_64-disk
+
+COPY horizontest/config/etc/sudoers.d/horizontest_sudoers /etc/sudoers.d/horizontest_sudoers
+RUN chmod 440 /etc/sudoers.d/horizontest_sudoers
+
+RUN mkdir -p /var/lib/horizontest/external_files && \
+    chown -R horizontest:horizontest /var/lib/horizontest
+
+COPY horizontest/scripts/run_horizontest.sh /usr/local/bin/run_horizontest.sh
+RUN chmod +x /usr/local/bin/run_horizontest.sh
+
+ENV USE_EXTERNAL_FILES=true
+
+USER horizontest
+
+ENTRYPOINT ["/usr/local/bin/run_horizontest.sh"]
