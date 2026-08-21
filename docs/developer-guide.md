@@ -3,7 +3,8 @@
 This guide documents the repository's current build, source-maintenance, and
 contributor workflows. For a concise project introduction, see the root
 [`README.md`](../README.md). For a short testing entry point, see
-[`TESTING.md`](TESTING.md).
+[`TESTING.md`](TESTING.md). For dropping unwanted upstream dependencies, see
+[`excluding-requirements.md`](excluding-requirements.md).
 
 Source-to-image container builds for OpenStack services on UBI 10 (ubi-minimal).
 
@@ -92,6 +93,14 @@ To patch or replace a transitive dependency, place the modified source in
 everything under `src/overrides/` automatically -- no `sources.txt` entry
 is needed. The filtered constraints file excludes source-built packages so
 the overridden version takes precedence over PyPI.
+
+### Excluding upstream requirements
+
+To drop a dependency that an upstream service lists in its `requirements.txt`
+but that we do not want in our images (e.g. `awscurl` and its heavy transitive
+tree), add the package name to `containers/<project>/excluded-requirements.txt`
+and re-run `update-sources`. See
+[`excluding-requirements.md`](excluding-requirements.md) for the full workflow.
 
 ## Manually maintained files
 
