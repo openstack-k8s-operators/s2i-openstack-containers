@@ -394,9 +394,18 @@ The image contains the API, applier, and decision-engine entry points and the
 union of their runtime dependencies. Watcher is intentionally not split into
 process-specific images.
 
-Both Cyborg images build and publish but are absent from the central mapping.
-Their exact references therefore appear in provider diagnostics without adding
-fields to the default deployment map.
+Unlisted targets are still built. They are absent from the central mapping
+on purpose:
+
+- `base` is not a service image.
+- `cyborg/*` is not wired into the default control plane yet.
+- `tempest` and `ansible-test` are test images, not control-plane services.
+- `cinder/cinder-volume` and `manila/manila-share` must be set as
+  `cinderVolumeImages` / `manilaShareImages` backend maps, which this
+  scalar mapping format cannot express.
+- s2i does not build `nova-compute`, `nova-conductor`, `nova-scheduler`,
+  `nova-novncproxy`, or placement. Those OpenStackVersion fields stay on
+  operator defaults.
 
 A child job may provide `s2i_ci_image_mappings` as a mapping from a selected
 image target to a replacement list of keys. Replacement is per image rather
@@ -414,7 +423,7 @@ Zuul secret data. Returned public diagnostics use the buildset registry's
 reachable host or IP and port, never the builder-local registry alias.
 
 `s2i_ci_content.images` contains every exact successful reference, including
-base and both unmapped Cyborg images. The partial
+base and other unmapped images. The partial
 `s2i_content_provider_os_custom_container_images` map contains only effective
 keys joined to exact successful references. The legacy global OS registry URL
 remains the neutral `null` sentinel, while its namespace/tag and gating-repo
@@ -539,3 +548,188 @@ for a commit shares the same `master-<sha>` tag and consistent OS packages.
    STREAM=master ./build.sh update-sources <project>
    STREAM=master ./build.sh build <project>
    ```
+
+## Speculative builds (Zuul integration)
+
+When a patch is submitted against an upstream OpenStack project (e.g.,
+`openstack/tempest`), the CI pipeline can automatically build fresh
+container images incorporating that patch. This is called a **speculative
+build**.
+
+### Auto-detection
+
+The content provider job accepts `s2i_ci_images: auto` to automatically
+determine which images need rebuilding based on the triggering project:
+
+```yaml
+# In a Zuul job definition
+vars:
+  s2i_ci_images: auto
+```
+
+Under the hood, auto-detection:
+
+1. Inspects `zuul.items` to find the projects in the speculative change
+   queue.
+2. Runs `build.sh auto-detect <canonical-project> [stream]` for each,
+   which scans `sources.txt` files to find which images reference that
+   project.
+3. Replaces `s2i_ci_images` with the de-duplicated list of affected
+   image targets.
+
+You can test auto-detection locally:
+
+```bash
+# Which images would be rebuilt for a tempest patch?
+PARALLEL=1 ./build.sh auto-detect openstack/tempest master
+
+# Full URL form also works
+PARALLEL=1 ./build.sh auto-detect https://opendev.org/openstack/neutron.git
+```
+
+### Source staging
+
+After auto-detection resolves the image list, the pipeline stages Zuul's
+source checkouts into the container build contexts. This replaces the
+pinned source with the patched version so the built image includes the
+speculative change.
+
+The staging playbook (`shared/stage-zuul-sources.yaml`) delegates all
+`sources.txt` parsing to `build.sh list-sources`, keeping build.sh as the
+single source of truth for the source manifest format.
+
+### Querying source dependencies
+
+`build.sh list-sources` prints pipe-delimited records for all source
+dependencies of an image target:
+
+```bash
+PARALLEL=1 ./build.sh list-sources tempest/tempest master
+# Output: name|canonical_project|url|dest_dir
+# tempest|openstack/tempest|https://opendev.org/openstack/tempest.git|/.../containers/tempest/src/tempest
+# barbican-tempest-plugin|openstack/barbican-tempest-plugin|https://...
+```
+
+This is used by the Ansible playbooks but is also useful for debugging
+which upstream repos feed into a given image.
+
+### Adding speculative deploy+test validation for a service
+
+Once the content provider can build images for a service, you can wire an
+end-to-end validation job that deploys OpenStack with the speculatively-built
+images and runs tempest tests.
+
+CI-Framework applies s2i-built images during `edpm_prepare` when jobs pass
+`s2i_content_provider_os_custom_container_images` as
+`cifmw_set_containers_images`. A small `set_containers` task applies those
+overrides before the control plane is deployed. Set
+`cifmw_set_containers_preserve_unlisted: true` when the list is partial so
+unspecified images are kept from the existing OpenStackVersion CR.
+
+Until the ci-framework change lands on `main`, consumer job MRs must add
+`Depends-On: <ci-framework-PR-URL>` so Zuul checks out the branch that
+wires `set_containers` into `edpm_prepare`.
+
+**Step 1: Verify image mappings exist.**
+
+Check `containers/image-mappings.yaml` for the service's images. Each
+image target must map to one or more `OpenStackVersion` deployment keys.
+If the service is missing, add entries:
+
+```yaml
+openstack_version:
+  custom_container_images:
+    <project>/<image>:
+      - <deploymentKeyImage>
+```
+
+**Step 2: Create the consumer job in the operator repo.**
+
+Two patterns are available depending on the service's deployment needs:
+
+*Services enabled in the standard deployment* (e.g., glance, nova) can
+parent `s2i-speculative-deploy-test-base`, which inherits
+`podified-multinode-edpm-deployment-crc-test-operator`, trusts the s2i
+buildset registry, and passes s2i image overrides to
+`cifmw_set_containers_images`:
+
+```yaml
+- job:
+    name: s2i-speculative-deploy-test-<service>
+    parent: s2i-speculative-deploy-test-base
+    vars:
+      s2i_tempest_include_list: "^tempest.api.<service-scope>"
+      cifmw_test_operator_tempest_tempestconf_config:
+        overrides: |
+          service_available.<service> true
+```
+
+*Services with custom deployments* (e.g., watcher, which needs 2+
+computes and operator-specific scenarios) should parent their own operator
+base job and pass the same container override variables used by
+`s2i-speculative-deploy-test-base`:
+
+```yaml
+- job:
+    name: s2i-speculative-deploy-test-<service>
+    parent: <service>-operator-base
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
+    vars:
+      content_provider_registry_ip: "{{ s2i_content_provider_registry_ip }}"
+      cifmw_set_containers_preserve_unlisted: true
+      cifmw_set_containers_images: >-
+        {{
+          s2i_content_provider_os_custom_container_images | dict2items |
+          json_query('[].{name: key, full_registry: value}')
+        }}
+```
+
+**Step 3: Register the consumer in the operator's project pipeline.**
+
+Add the job to the operator's `github-check` pipeline with dependencies
+on both content providers:
+
+```yaml
+- s2i-speculative-deploy-test-<service>:
+    voting: false
+    dependencies:
+      - openstack-k8s-operators-content-provider
+      - s2i-openstack-container-content-provider
+```
+
+**Step 4: Add the upstream project stanza (optional).**
+
+To also trigger validation from upstream source changes (e.g., a patch to
+`opendev.org/openstack/<service>`), add a project stanza to the
+`config` repository's `zuul.d/s2i-openstack-speculative-builds.yaml`.
+Use the `s2i-speculative-build` template for the content provider and
+add the consumer job:
+
+```yaml
+- project:
+    name: opendev.org/openstack/<service>
+    templates:
+      - s2i-speculative-build
+    check:
+      jobs:
+        - openstack-k8s-operators-content-provider:
+            vars:
+              cifmw_install_yamls_sdk_version: v1.41.1
+        - s2i-speculative-deploy-test-<service>:
+            voting: false
+            dependencies:
+              - openstack-k8s-operators-content-provider
+              - s2i-openstack-container-content-provider
+```
+
+Projects that only need build validation (no deployment) can use the
+template alone:
+
+```yaml
+- project:
+    name: opendev.org/openstack/<service>
+    templates:
+      - s2i-speculative-build
+```

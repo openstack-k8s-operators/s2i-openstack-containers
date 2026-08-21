@@ -1,4 +1,19 @@
 ---
+# Maps s2i build targets to OpenStackVersion spec.customContainerImages
+# field names. Unlisted targets are still built and returned by the content
+# provider, but they are not injected during edpm_prepare.
+#
+# Intentionally unmapped:
+# - base -- not a service image
+# - cyborg/* -- not wired into the default control plane yet
+# - tempest, ansible-test -- test images, not control-plane services
+# - cinder/cinder-volume, manila/manila-share -- OpenStackVersion stores
+#   these as cinderVolumeImages/manilaShareImages maps (backends), which
+#   this scalar mapping format cannot express
+#
+# s2i does not build nova-compute, nova-conductor, nova-scheduler,
+# nova-novncproxy, or placement. Those OpenStackVersion fields stay on
+# operator defaults.
 openstack_version:
   custom_container_images:
     aodh/aodh-api:
@@ -10,16 +25,22 @@ openstack_version:
       - barbicanAPIImage
       - barbicanWorkerImage
       - barbicanKeystoneListenerImage
+    cinder/cinder-api:
+      - cinderAPIImage
+    cinder/cinder-backup:
+      - cinderBackupImage
+    cinder/cinder-scheduler:
+      - cinderSchedulerImage
+    designate/designate-api:
+      - designateAPIImage
+    designate/designate-backend-bind9:
+      - designateBackendbind9Image
     designate/designate-central:
       - designateCentralImage
       - designateMdnsImage
       - designateProducerImage
     designate/designate-worker:
       - designateWorkerImage
-    designate/designate-api:
-      - designateAPIImage
-    designate/designate-backend-bind9:
-      - designateBackendbind9Image
     designate/unbound:
       - designateUnboundImage
     glance/glance-api:
@@ -29,23 +50,63 @@ openstack_version:
       - heatCfnapiImage
     heat/heat-engine:
       - heatEngineImage
+    horizon/horizon:
+      - horizonImage
     keystone/keystone:
       - keystoneAPIImage
     manila/manila-api:
       - manilaAPIImage
     manila/manila-scheduler:
       - manilaSchedulerImage
-    manila/manila-share:
-      - manilaShareImage
+    mariadb/mariadb:
+      - mariadbImage
+    memcached/memcached:
+      - infraMemcachedImage
+    neutron/ironic-neutron-agent:
+      - ironicNeutronAgentImage
+    neutron/neutron-dhcp-agent:
+      - edpmNeutronDhcpAgentImage
+    neutron/neutron-metadata-agent-ovn:
+      - edpmNeutronMetadataAgentImage
+    neutron/neutron-ovn-agent:
+      - edpmNeutronOvnAgentImage
+    neutron/neutron-server:
+      - neutronAPIImage
+    neutron/neutron-sriov-agent:
+      - edpmNeutronSriovAgentImage
+    nova/nova-api:
+      - novaAPIImage
     octavia/octavia-api:
       - octaviaAPIImage
     octavia/octavia-worker:
       - octaviaWorkerImage
       - octaviaHousekeepingImage
       - octaviaHealthmanagerImage
+    openstackclient/openstackclient:
+      - openstackClientImage
+    ovn/ovn-base:
+      - ovnControllerOvsImage
+    ovn/ovn-controller:
+      - ovnControllerImage
+    ovn/ovn-nb-db-server:
+      - ovnNbDbclusterImage
+    ovn/ovn-northd:
+      - ovnNorthdImage
+    ovn/ovn-sb-db-server:
+      - ovnSbDbclusterImage
+    rabbitmq/rabbitmq:
+      - rabbitmqImage
+    redis/redis:
+      - infraRedisImage
+    swift/swift-account:
+      - swiftAccountImage
+    swift/swift-container:
+      - swiftContainerImage
+    swift/swift-object:
+      - swiftObjectImage
+    swift/swift-proxy-server:
+      - swiftProxyImage
     watcher/watcher-base:
       - watcherAPIImage
       - watcherApplierImage
       - watcherDecisionEngineImage
-    horizon/horizon:
-      - horizonImage

@@ -2,11 +2,10 @@
 profile: production
 exclude_paths:
   - .tmp/
+  - zuul.d/
 mock_modules:
   - zuul_return
 mock_roles:
   - collect-container-logs
   - ensure-output-dirs
   - ensure-podman
-  - run-buildset-registry
-  - use-buildset-registry

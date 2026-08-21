@@ -1,0 +1,72 @@
+---
+# Resolve `s2i_ci_images: auto` by scanning sources.txt files to find
+# which images are affected by the projects in the Zuul workspace.
+#
+# Called from shared/run.yaml when s2i_ci_images == "auto".
+# After this task file completes, s2i_ci_images is replaced with the
+# de-duplicated list of detected image targets.
+#
+# Required variables (set by run.yaml before including this):
+#   s2i_ci_container_repo    - path to the s2i-openstack-containers checkout
+#   s2i_ci_container_project - canonical name of the container project
+#   s2i_ci_stream            - stream name (e.g. "master")
+
+- name: Collect changed projects from Zuul queue
+  ansible.builtin.set_fact:
+    s2i_ci_changed_projects: >-
+      {{ (zuul.items | default([]))
+         | selectattr('project', 'defined')
+         | map(attribute='project')
+         | map(attribute='canonical_name', default='')
+         | select('ne', '')
+         | reject('equalto', s2i_ci_container_project)
+         | unique
+         | list }}
+
+- name: Fall back to primary project when no queue items
+  ansible.builtin.set_fact:
+    s2i_ci_changed_projects: >-
+      {{ [zuul.project.canonical_name]
+         | reject('equalto', s2i_ci_container_project)
+         | list }}
+  when: s2i_ci_changed_projects | length == 0
+
+- name: Run auto-detect for each changed project
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - auto-detect
+      - "{{ item }}"
+      - "{{ s2i_ci_stream }}"
+  args:
+    chdir: "{{ s2i_ci_container_repo }}"
+  loop: "{{ s2i_ci_changed_projects }}"
+  register: s2i_ci_auto_detect_results
+  changed_when: false
+  failed_when: false
+
+- name: Collect auto-detected images
+  ansible.builtin.set_fact:
+    s2i_ci_images: >-
+      {{ s2i_ci_auto_detect_results.results
+         | selectattr('rc', 'equalto', 0)
+         | map(attribute='stdout_lines')
+         | flatten
+         | unique
+         | list }}
+
+- name: Fail if no images were detected
+  ansible.builtin.assert:
+    that:
+      - s2i_ci_images | length > 0
+    fail_msg: >-
+      Auto-detection found no images for projects:
+      {{ s2i_ci_changed_projects | join(', ') }}.
+      Verify that sources.txt references these projects.
+
+- name: Report auto-detected images
+  ansible.builtin.debug:
+    msg: >-
+      Auto-detected {{ s2i_ci_images | length }} image(s) for
+      {{ s2i_ci_changed_projects | join(', ') }}:
+      {{ s2i_ci_images | join(', ') }}

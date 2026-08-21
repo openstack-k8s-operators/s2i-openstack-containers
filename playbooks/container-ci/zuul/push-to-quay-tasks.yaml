@@ -1,0 +1,9 @@
+---
+# Full build-and-push sequence for standalone use (e.g. manual playbook runs).
+# The config repo wrapper splits build and push to run trusted Quay API tasks
+# in between.
+- name: Include build tasks
+  ansible.builtin.include_tasks: push-to-quay-build-tasks.yaml
+
+- name: Include push tasks
+  ansible.builtin.include_tasks: push-to-quay-push-tasks.yaml

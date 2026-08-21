@@ -1,0 +1,23 @@
+---
+# Standalone playbook for building and pushing S2I images to quay.io.
+#
+# Expects the caller to have already authenticated to the target
+# registry (e.g. via `buildah login --authfile`) before running this
+# playbook. Set s2i_quay_auth_file so build.sh push uses the same
+# REGISTRY_AUTH_FILE. Zuul post-merge jobs use the config repo wrapper
+# instead, which also handles Quay repository creation and commit-sha
+# tag expiration.
+- name: Build and push S2I images to quay.io
+  hosts: builder
+  vars:
+    s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
+    s2i_ci_log_dir: "{{ s2i_ci_output_dir }}/logs/container-build"
+    s2i_ci_workspace_root: "{{ zuul_user_dir | default(ansible_user_dir) }}"
+    s2i_quay_registry: "quay.io"
+    s2i_quay_namespace: "openstack-k8s-operators"
+    s2i_quay_tag: "master-{{ zuul.newrev | default(zuul.change | default('dev')) }},master-latest"
+    s2i_ci_images: all
+
+  tasks:
+    - name: Run build and push tasks
+      ansible.builtin.include_tasks: push-to-quay-tasks.yaml
