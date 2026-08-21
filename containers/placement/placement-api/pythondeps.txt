@@ -1,0 +1,5 @@
+# Database driver (mysql extra for oslo.db; placement stores resource
+# provider inventory/allocation data in its own DB)
+oslo.db[mysql]
+# Required by keystonemiddleware for memcache-based token caching
+oslo.cache[dogpile]

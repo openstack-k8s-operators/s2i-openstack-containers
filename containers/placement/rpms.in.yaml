@@ -1,0 +1,32 @@
+contentOrigin:
+  repofiles:
+    - ./rpms.repo
+context:
+  bare: true
+
+#
+# To update rpms.lock.yaml:
+#    rpm-lockfile-prototype rpms.in.yaml
+#
+
+arches:
+  - x86_64
+  - aarch64
+
+packages:
+  - cargo
+  - gcc
+  - gcc-c++
+  - git-core
+  - httpd
+  - libffi-devel
+  - mod_ssl
+  - openssl-devel
+  - python3
+  - python3-cryptography-43.0.0-4.el10
+  - python3-devel
+  - python3-mod_wsgi
+  - python3-pip
+  - python3-setuptools
+  - python3-wheel
+  - rust

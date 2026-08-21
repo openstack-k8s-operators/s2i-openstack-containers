@@ -1,0 +1,24 @@
+# See the OWNERS docs at https://www.kubernetes.dev/docs/guide/owners/
+# Kept in sync with the compute-approvers alias in
+# https://github.com/openstack-k8s-operators/nova-operator/blob/main/OWNERS_ALIASES
+approvers:
+  - gibizer
+  - SeanMooney
+  - bogdando
+  - kk7ds
+  - mrKisaoLamb
+  - jamepark4
+  - auniyal61
+  - amartyasinha
+  - amoralej
+
+reviewers:
+  - gibizer
+  - SeanMooney
+  - bogdando
+  - kk7ds
+  - mrKisaoLamb
+  - jamepark4
+  - auniyal61
+  - amartyasinha
+  - amoralej
