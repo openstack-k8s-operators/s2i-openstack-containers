@@ -1,0 +1,2 @@
+# Libvirt Python bindings for hypervisor introspection
+python3-libvirt

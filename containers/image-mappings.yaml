@@ -10,6 +10,18 @@ openstack_version:
       - barbicanAPIImage
       - barbicanWorkerImage
       - barbicanKeystoneListenerImage
+    ceilometer/ceilometer-central:
+      - ceilometerCentralImage
+    ceilometer/ceilometer-compute:
+      - ceilometerComputeImage
+    ceilometer/ceilometer-ipmi:
+      - ceilometerIpmiImage
+    ceilometer/ceilometer-notification:
+      - ceilometerNotificationImage
+    cloudkitty/cloudkitty-api:
+      - cloudkittyAPIImage
+    cloudkitty/cloudkitty-processor:
+      - cloudkittyProcImage
     designate/designate-central:
       - designateCentralImage
       - designateMdnsImage

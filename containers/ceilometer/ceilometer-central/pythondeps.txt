@@ -1,0 +1,1 @@
+# No extra python dependencies for ceilometer-central

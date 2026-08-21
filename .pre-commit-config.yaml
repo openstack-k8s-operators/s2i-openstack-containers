@@ -13,6 +13,7 @@ repos:
       - id: fix-byte-order-marker
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
+        exclude: ^containers/cloudkitty/common/config/usr/bin/cloudkitty-api
       - id: check-yaml
         files: .*\.(yaml|yml)$
         args: [--allow-multiple-documents]

@@ -1,6 +1,1 @@
-
-# Database driver (mysql extra for oslo.db)
-oslo.db[mysql]
-
-# Required by keystonemiddleware for memcache-based token caching
-oslo.cache[dogpile]
+# No extra python dependencies for aodh-api

@@ -714,6 +714,29 @@ test_update_sources_all_includes_pure_rpm() {
     test ! -f "${TEST_DIR}/containers/test-rpmsvc/requirements.lock.master"
 }
 
+# ── Requirement-exclusion tests ──────────────────────────────────────────
+
+# update-sources strips excluded requirements from the cloned source tree so the
+# excluded package is absent from the generated lockfile.
+test_update_sources_applies_exclusions() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  printf '# drop pbr for this test\npbr\n' \
+    > "${TEST_DIR}/containers/test-svc/excluded-requirements.txt"
+
+  _run_build STREAM=master
+
+  local req="${TEST_DIR}/containers/test-svc/src/test-svc/requirements.txt"
+  assert_file_exists "${req}"
+  assert_grep '^six' "${req}"
+  assert_no_grep '^pbr' "${req}"
+
+  local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${lock}"
+  assert_grep 'six' "${lock}"
+  assert_no_grep '^pbr' "${lock}"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────
 
 echo "=== update-sources tests ==="
@@ -759,6 +782,7 @@ TESTS=(
   test_update_lockfiles_pure_rpm_generates_rpms_in
   test_update_lockfiles_pure_rpm_skips_lockfiles
   test_update_sources_all_includes_pure_rpm
+  test_update_sources_applies_exclusions
 )
 
 for t in "${TESTS[@]}"; do

@@ -1,0 +1,5 @@
+#!/usr/bin/python3 -sP
+
+# PBR Generated from 'wsgi_scripts'
+
+from cloudkitty.wsgi.api import application

@@ -1,0 +1,1 @@
+# No extra build dependencies for ceilometer-compute

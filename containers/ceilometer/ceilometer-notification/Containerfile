@@ -1,0 +1,132 @@
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# --- Build stage: compile wheels and collect upstream config ---
+FROM ${BASE_IMAGE} AS build
+
+ENV CONTAINER_NAME="ceilometer-notification"
+ARG SERVICE_SRC=/src/ceilometer
+
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY src/ /src/
+COPY ${CONTAINER_NAME}/src/ /src/
+
+ARG PIP_NO_BINARY=""
+ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+
+COPY builddeps.txt /tmp/builddeps-common.txt
+COPY ${CONTAINER_NAME}/builddeps.txt /tmp/builddeps-extra.txt
+RUN pkgs=$(cat /tmp/builddeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
+
+COPY pythonbuilddeps.txt /tmp/pythonbuilddeps-common.txt
+COPY ${CONTAINER_NAME}/pythonbuilddeps.txt /tmp/pythonbuilddeps-extra.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
+    rm /tmp/pythonbuilddeps*.txt
+
+RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
+    for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        sed -i "/^${pkg_name}[=!<>]/Id" /tmp/build-constraints.txt; \
+      fi; \
+    done
+
+# Drop excluded upstream requirements before building the service wheel, so the
+# wheel's own metadata (Requires-Dist) cannot pull them back in at install time.
+# Mirrors the RDO ceilometer distgit spec, which strips the same packages from
+# requirements.txt in %prep. See docs/excluding-requirements.md.
+COPY excluded-requirements.txt /tmp/excluded-requirements.txt
+# Pre-strip comments, inline whitespace, and blank lines inline so the loop sees
+# one bare package name per line -- identical to the host-side strip in build.sh.
+RUN sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' /tmp/excluded-requirements.txt | \
+    while IFS= read -r pkg; do \
+      for req in /src/*/requirements.txt /src/overrides/*/requirements.txt; do \
+        if [ -f "${req}" ]; then \
+          sed -i -E "/^${pkg}([[:space:]<>=!~;,#[]|\$)/Id" "${req}"; \
+        fi; \
+      done; \
+    done && \
+    rm /tmp/excluded-requirements.txt
+
+# Build wheels from source packages (project repos and overrides)
+RUN for pkg in /src/*/ /src/overrides/*/; do \
+      if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
+      fi; \
+    done
+
+# Build wheels for all dependencies (from the constraints/lockfile)
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --find-links=/wheels/pkgs \
+      --wheel-dir=/wheels/deps -r /deps-upper-constraints.txt
+
+RUN for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        echo "${pkg_name},${commit},${version}"; \
+      fi; \
+    done > /source-built-packages.txt
+
+# Collect upstream config files
+RUN mkdir -p /configfiles/etc/ceilometer/meters.d && \
+    cp -a ${SERVICE_SRC}/ceilometer/pipeline/data/pipeline.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/etc/ceilometer/polling.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/ceilometer/pipeline/data/event_pipeline.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/ceilometer/pipeline/data/event_definitions.yaml /configfiles/etc/ceilometer/ && \
+    cp -a ${SERVICE_SRC}/ceilometer/data/meters.d/meters.yaml /configfiles/etc/ceilometer/meters.d/
+
+# --- Runtime stage ---
+FROM ${BASE_IMAGE}
+
+ENV CONTAINER_NAME="ceilometer-notification"
+LABEL summary="OpenStack Ceilometer Notification Agent" \
+      io.k8s.description="Ceilometer notification agent container built from source with kolla interface"
+
+RUN uid_gid_manage ceilometer
+
+COPY bindeps.txt /tmp/bindeps-common.txt
+COPY ${CONTAINER_NAME}/bindeps.txt /tmp/bindeps-extra.txt
+RUN pkgs=$(cat /tmp/bindeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && rm /tmp/bindeps*.txt
+
+COPY --from=build /wheels /wheels
+COPY --from=build /tmp/build-constraints.txt /deps-upper-constraints.txt
+COPY --from=build /source-built-packages.txt /source-built-packages.txt
+COPY pythondeps.txt /tmp/pythondeps-common.txt
+COPY ${CONTAINER_NAME}/pythondeps.txt /tmp/pythondeps-extra.txt
+RUN extrapkgs=$(cat /tmp/pythondeps*.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    pip3 install --no-cache-dir --prefix=/usr \
+      -c /deps-upper-constraints.txt \
+      --find-links=/wheels/deps \
+      --find-links=/wheels/pkgs \
+      /wheels/pkgs/*.whl ${extrapkgs} && \
+    rm -rf /wheels /tmp/pythondeps*.txt
+
+RUN mkdir -p /etc/ceilometer/meters.d /var/log/ceilometer /var/lib/ceilometer /var/lib/ceilometer/tmp && \
+    chmod 750 /var/log/ceilometer && \
+    chown -R ceilometer:ceilometer /etc/ceilometer /var/log/ceilometer /var/lib/ceilometer
+
+# Install config files — each file listed explicitly
+COPY --from=build /configfiles/etc/ceilometer/pipeline.yaml /etc/ceilometer/pipeline.yaml
+COPY --from=build /configfiles/etc/ceilometer/polling.yaml /etc/ceilometer/polling.yaml
+COPY --from=build /configfiles/etc/ceilometer/event_pipeline.yaml /etc/ceilometer/event_pipeline.yaml
+COPY --from=build /configfiles/etc/ceilometer/event_definitions.yaml /etc/ceilometer/event_definitions.yaml
+COPY --from=build /configfiles/etc/ceilometer/meters.d/meters.yaml /etc/ceilometer/meters.d/meters.yaml
+COPY common/config/usr/share/ceilometer/ceilometer-dist.conf /usr/share/ceilometer/ceilometer-dist.conf
+COPY common/config/etc/sudoers.d/ceilometer /etc/sudoers.d/ceilometer
+
+RUN chmod 640 /etc/ceilometer/pipeline.yaml \
+              /etc/ceilometer/polling.yaml \
+              /etc/ceilometer/event_pipeline.yaml \
+              /etc/ceilometer/event_definitions.yaml \
+              /etc/ceilometer/meters.d/meters.yaml \
+              /usr/share/ceilometer/ceilometer-dist.conf && \
+    chmod 440 /etc/sudoers.d/ceilometer && \
+    chown -R root:ceilometer /etc/ceilometer /usr/share/ceilometer
+
+USER ceilometer
