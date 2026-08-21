@@ -6,16 +6,54 @@ Python dependencies constrained by generated lock files.
 
 The repository currently builds:
 
+- `openstack-ansible-test`;
+- `openstack-aodh-api`;
 - `openstack-base`;
+- `openstack-barbican-api`;
+- `openstack-cinder-api`;
+- `openstack-cinder-backup`;
+- `openstack-cinder-scheduler`;
+- `openstack-cinder-volume`;
 - `openstack-cyborg`;
 - `openstack-cyborg-agent`;
+- `openstack-designate-api`;
+- `openstack-designate-backend-bind9`;
+- `openstack-designate-central`;
+- `openstack-designate-worker`;
 - `openstack-glance-api`;
+- `openstack-heat-api`;
+- `openstack-heat-engine`;
+- `openstack-horizon`;
+- `openstack-ironic-neutron-agent`;
 - `openstack-keystone`;
 - `openstack-barbican-api`;
 - `openstack-manila-api`;
 - `openstack-manila-scheduler`;
 - `openstack-manila-share`;
-- `openstack-watcher-base`.
+- `openstack-mariadb`;
+- `openstack-memcached`;
+- `openstack-neutron-dhcp-agent`;
+- `openstack-neutron-metadata-agent-ovn`;
+- `openstack-neutron-ovn-agent`;
+- `openstack-neutron-server`;
+- `openstack-neutron-sriov-agent`;
+- `openstack-nova-api`;
+- `openstack-octavia-api`;
+- `openstack-octavia-worker`;
+- `openstack-openstackclient`;
+- `openstack-ovn-base`;
+- `openstack-ovn-controller`;
+- `openstack-ovn-nb-db-server`;
+- `openstack-ovn-northd`;
+- `openstack-ovn-sb-db-server`;
+- `openstack-rabbitmq`;
+- `openstack-redis`;
+- `openstack-swift-account`;
+- `openstack-swift-container`;
+- `openstack-swift-object`;
+- `openstack-swift-proxy-server`;
+- `openstack-tempest`;
+- `openstack-watcher-base`;
 
 ## Quick start
 

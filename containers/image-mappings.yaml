@@ -1,6 +1,8 @@
 ---
 openstack_version:
   custom_container_images:
+    ansible-test/ansible-test:
+      - testAnsibletestImage
     aodh/aodh-api:
       - aodhAPIImage
       - aodhEvaluatorImage
@@ -10,6 +12,14 @@ openstack_version:
       - barbicanAPIImage
       - barbicanWorkerImage
       - barbicanKeystoneListenerImage
+    cinder/cinder-api:
+      - cinderAPIImage
+    cinder/cinder-backup:
+      - cinderBackupImage
+    cinder/cinder-scheduler:
+      - cinderSchedulerImage
+    cinder/cinder-volume:
+      - cinderVolumeImages
     designate/designate-central:
       - designateCentralImage
       - designateMdnsImage
@@ -29,6 +39,8 @@ openstack_version:
       - heatCfnapiImage
     heat/heat-engine:
       - heatEngineImage
+    horizon/horizon:
+      - horizonImage
     keystone/keystone:
       - keystoneAPIImage
     manila/manila-api:
@@ -37,15 +49,57 @@ openstack_version:
       - manilaSchedulerImage
     manila/manila-share:
       - manilaShareImage
+    mariadb/mariadb:
+      - mariadbImage
+    memcached/memcached:
+      - infraMemcachedImage
+    neutron/ironic-neutron-agent:
+      - ironicNeutronAgentImage
+    neutron/neutron-dhcp-agent:
+      - edpmNeutronDhcpAgentImage
+    neutron/neutron-metadata-agent-ovn:
+      - edpmNeutronMetadataAgentImage
+    neutron/neutron-server:
+      - neutronAPIImage
+    neutron/neutron-ovn-agent:
+      - edpmNeutronOvnAgentImage
+    neutron/neutron-sriov-agent:
+      - edpmNeutronSriovAgentImage
+    nova/nova-api:
+      - novaAPIImage
     octavia/octavia-api:
       - octaviaAPIImage
     octavia/octavia-worker:
       - octaviaWorkerImage
       - octaviaHousekeepingImage
       - octaviaHealthmanagerImage
+    openstackclient/openstackclient:
+      - openstackClientImage
+    ovn/ovn-base:
+      - ovnControllerOvsImage
+    ovn/ovn-controller:
+      - ovnControllerImage
+    ovn/ovn-nb-db-server:
+      - ovnNbDbclusterImage
+    ovn/ovn-northd:
+      - ovnNorthdImage
+    ovn/ovn-sb-db-server:
+      - ovnSbDbclusterImage
+    rabbitmq/rabbitmq:
+      - rabbitmqImage
+    redis/redis:
+      - infraRedisImage
+    swift/swift-account:
+      - swiftAccountImage
+    swift/swift-container:
+      - swiftContainerImage
+    swift/swift-object:
+      - swiftObjectImage
+    swift/swift-proxy-server:
+      - swiftProxyImage
+    tempest/tempest:
+      - testTempestImage
     watcher/watcher-base:
       - watcherAPIImage
       - watcherApplierImage
       - watcherDecisionEngineImage
-    horizon/horizon:
-      - horizonImage
