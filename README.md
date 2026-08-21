@@ -15,6 +15,7 @@ The repository currently builds:
 - `openstack-manila-api`;
 - `openstack-manila-scheduler`;
 - `openstack-manila-share`;
+- `openstack-tobiko`;
 - `openstack-watcher-base`.
 
 ## Quick start

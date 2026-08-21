@@ -1,0 +1,16 @@
+# Test runner (tobiko test-requirements.txt)
+pytest
+pytest-html
+pytest-xdist[psutil]
+# Extra deps not always covered by upper-constraints
+# (tobiko extra-requirements.txt)
+dpkt
+openshift-client
+podman==4.7.0
+pytest-cov
+pytest-reportportal
+pytest-rerunfailures
+pytest-subtests
+pytest-timeout
+# test-operator / TCIB launch tests via tox
+tox==4.13.0

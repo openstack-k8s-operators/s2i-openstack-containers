@@ -1,0 +1,2 @@
+master upper-constraints https://opendev.org/openstack/requirements.git master b79ae30778228441fe49b61fc51b0ff2f440546c
+master tobiko https://opendev.org/x/tobiko.git master 681c83a674eae124bf0c44a9e315288b309707eb

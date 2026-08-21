@@ -85,6 +85,12 @@
 #                     build all packages from source instead of using wheels.
 #   REGISTRY_AUTH_FILE Authentication file passed explicitly to buildah push.
 #   REGISTRY_CERT_DIR  TLS certificate directory passed explicitly to buildah push.
+#
+# Extra HTTP artifacts:
+#   If containers/<project>/<image>/artifacts.txt exists, build.sh downloads
+#   each pinned file into that directory before buildah bud. Format:
+#     <filename> <sha256> <url>
+#   Files are checksum-verified and gitignored; rebuilds reuse a matching copy.
 
 set -euo pipefail
 
@@ -231,6 +237,46 @@ ensure_project_constraints() {
   return 1
 }
 
+# Fetch extra HTTP artifacts listed in artifacts.txt into the image directory.
+# Format: <filename> <sha256> <url>
+ensure_artifacts() {
+  local dir_name="$1"
+  local artifacts_file="${CONTAINERS_DIR}/${dir_name}/artifacts.txt"
+  [[ -f "${artifacts_file}" ]] || return 0
+
+  if ! command -v curl >/dev/null; then
+    echo "ERROR: curl is required to fetch artifacts from ${artifacts_file}" >&2
+    return 1
+  fi
+
+  local dest_dir
+  dest_dir="$(dirname "${artifacts_file}")"
+  while IFS=' ' read -r filename sha256 url; do
+    [[ -z "${filename}" || "${filename}" == \#* ]] && continue
+    local dest="${dest_dir}/${filename}"
+    local actual=""
+    if [[ -f "${dest}" ]]; then
+      actual="$(sha256sum "${dest}" | awk '{print $1}')"
+      if [[ "${actual}" == "${sha256}" ]]; then
+        echo "--- Artifact ${filename} already present ---"
+        continue
+      fi
+      echo "--- Artifact ${filename} checksum mismatch, re-fetching ---"
+      rm -f "${dest}"
+    fi
+    echo "--- Fetching ${filename} ---"
+    curl -fsSL -o "${dest}" "${url}"
+    actual="$(sha256sum "${dest}" | awk '{print $1}')"
+    if [[ "${actual}" != "${sha256}" ]]; then
+      echo "ERROR: checksum mismatch for ${filename}" >&2
+      echo "       expected ${sha256}" >&2
+      echo "       got      ${actual}" >&2
+      rm -f "${dest}"
+      return 1
+    fi
+  done < "${artifacts_file}"
+}
+
 # Clone a repo at a specific commit hash if not already present
 # Args: <dest_dir> <url> <pinned_hash>
 clone_at_hash() {
@@ -292,6 +338,8 @@ build_image() {
   project="$(project_name "${dir_name}")"
 
   echo "=== Building ${full_tag} ==="
+
+  ensure_artifacts "${dir_name}"
 
   # openstack-base image: no service source, build context is its own directory
   if [[ -z "${project}" ]]; then
@@ -1424,7 +1472,7 @@ case "${ACTION}" in
     fi
     ;;
   install-deps)
-    SYSTEM_DEPS=(git buildah podman)
+    SYSTEM_DEPS=(git buildah podman curl)
     echo "=== Installing system dependencies ==="
     echo "Packages: ${SYSTEM_DEPS[*]}"
     if command -v dnf &>/dev/null; then

@@ -1,0 +1,7 @@
+# Extra HTTP artifacts fetched by build.sh into this directory before buildah.
+# Format: <filename> <sha256> <url>
+#
+# OpenShift client (same source as TCIB). Pin a versioned path, not "stable".
+# Containerfile copies openshift-client-linux-${TARGETARCH}.tar.gz.
+openshift-client-linux-amd64.tar.gz 76e22160684a4313daec380437abf54a029bddc3249a824928a84379069840d1 https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.22.9/openshift-client-linux.tar.gz
+openshift-client-linux-arm64.tar.gz 3bb533a5ca471790adbf1d1edfb103c1db6c6b3651183c30a0a8419b7d448f17 https://mirror.openshift.com/pub/openshift-v4/aarch64/clients/ocp/4.22.9/openshift-client-linux.tar.gz
