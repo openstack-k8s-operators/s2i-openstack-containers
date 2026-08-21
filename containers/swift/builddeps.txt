@@ -9,8 +9,12 @@ python3-setuptools
 python3-wheel
 libffi-devel
 openssl-devel
-# Required to build pyeclib (erasure coding)
-liberasurecode-devel
+# Build liberasurecode from source (fetched via sources.txt); replaces
+# the liberasurecode-devel RPM. Needs the autotools toolchain.
+make
+autoconf
+automake
+libtool
 # Required to build xattr
 libattr-devel
 # Pinned to 43.x to match upper-constraints (cryptography==43.0.3); see bindeps.txt

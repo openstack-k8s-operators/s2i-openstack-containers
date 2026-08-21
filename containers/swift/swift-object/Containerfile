@@ -20,6 +20,11 @@ COPY builddeps.txt /tmp/builddeps.txt
 RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
 
+# Build liberasurecode from source (see common/build-liberasurecode.sh).
+# Replaces the liberasurecode / liberasurecode-devel RPMs.
+COPY common/build-liberasurecode.sh /tmp/build-liberasurecode.sh
+RUN sh /tmp/build-liberasurecode.sh && rm -f /tmp/build-liberasurecode.sh
+
 COPY pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
 RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
@@ -65,6 +70,11 @@ LABEL summary="OpenStack Swift Object Server" \
       io.k8s.description="Swift object server built from source with kolla interface"
 
 RUN uid_gid_manage swift
+
+# Runtime liberasurecode (source-built in the build stage above). Replaces
+# the liberasurecode runtime RPM.
+COPY --from=build /lec-install/usr/lib64/ /usr/lib64/
+RUN ldconfig
 
 COPY bindeps.txt /tmp/bindeps.txt
 COPY swift-object/bindeps.txt /tmp/bindeps-extra.txt

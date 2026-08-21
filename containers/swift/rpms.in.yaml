@@ -15,20 +15,22 @@ arches:
 
 packages:
   - attr
+  - autoconf
+  - automake
   - cargo
   - gcc
   - gcc-c++
   - git-core
   - httpd
   - libattr-devel
-  - liberasurecode
-  - liberasurecode-devel
   - libffi
   - libffi-devel
+  - libtool
   - libxml2
   - libxml2-devel
   - libxslt
   - libxslt-devel
+  - make
   - mod_ssl
   - nmap-ncat
   - openssl-devel

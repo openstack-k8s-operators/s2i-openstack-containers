@@ -10,7 +10,7 @@ python3-cryptography-43.0.0-4.el10
 libffi
 libxml2
 libxslt
-# Erasure coding library (runtime for pyeclib)
-liberasurecode
+# NOTE: liberasurecode (runtime for pyeclib) is built from source in the
+# build stage and copied in; it is intentionally NOT installed from RPM here.
 # Extended filesystem attributes (used by swift for xattrs on stored objects)
 attr
