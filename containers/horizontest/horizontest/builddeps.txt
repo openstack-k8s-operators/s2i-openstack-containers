@@ -1,0 +1,21 @@
+git-core
+gcc
+gcc-c++
+python3-devel
+python3-setuptools
+libffi-devel
+openssl-devel
+# Pinned to 43.x to match upper-constraints.txt (cryptography==43.0.3).
+# The default el10 RPM ships 49.x which conflicts with pyOpenSSL 24.2.1
+# (requires cryptography<44), causing an ImportError at runtime. Bump this
+# pin once pyOpenSSL >= 25.0 lands in upper-constraints (drops the <44 cap).
+python3-cryptography-43.0.0-4.el10
+# Required to build Pillow from source (transitive dep of horizon)
+libjpeg-turbo-devel
+zlib-devel
+freetype-devel
+libwebp-devel
+libtiff-devel
+# To build bcrypt / rpds-py from source
+rust
+cargo

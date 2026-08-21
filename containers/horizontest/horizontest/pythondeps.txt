@@ -1,0 +1,11 @@
+pytest
+pytest-django
+pytest-html
+Django
+horizon
+selenium
+testtools
+xvfbwrapper
+urllib3
+# OpenStack CLI used by run_horizontest.sh (image/project/user/flavor mgmt)
+python-openstackclient

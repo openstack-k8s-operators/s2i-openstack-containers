@@ -1,0 +1,12 @@
+# See the OWNERS docs at https://www.kubernetes.dev/docs/guide/owners/
+approvers:
+  - mcgonago
+  - deshipu
+  - xtmprsqzntwlfb
+  - HanzJas
+
+reviewers:
+  - mcgonago
+  - deshipu
+  - xtmprsqzntwlfb
+  - HanzJas
