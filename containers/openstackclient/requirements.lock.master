@@ -2,10 +2,10 @@ aodhclient==3.11.0
 attrs==26.1.0
 autopage==0.6.0
 certifi==2026.7.22
-cffi==2.0.0
-charset-normalizer==3.4.7
+cffi==2.1.1
+charset-normalizer==3.5.0
 cliff==4.15.0
-cmd2==4.0.0
+cmd2==4.2.0
 debtcollector==3.1.0
 decorator==5.3.1
 dogpile-cache==1.5.0
@@ -36,12 +36,12 @@ oslo-log==8.3.0
 oslo-serialization==5.11.0
 oslo-utils==10.1.1
 osprofiler==4.4.0
-packaging==26.2
+packaging==26.3
 pbr==7.0.3
-platformdirs==4.10.0
+platformdirs==4.11.3
 ply==3.11
 prettytable==3.18.0
-prompt-toolkit==3.0.52
+prompt-toolkit==3.0.53
 psutil==7.2.2
 pycparser==3.0
 pygments==2.20.0
@@ -70,15 +70,15 @@ requests==2.34.2
 rfc3986==2.0.0
 rich==15.0.0
 rich-argparse==1.8.0
-rpds-py==2026.5.1
+rpds-py==2026.6.3
 six==1.17.0
-stevedore==5.9.0
-typing-extensions==4.15.0
+stevedore==5.9.1
+typing-extensions==4.16.0
 urllib3==2.7.0
 warlock==2.1.0
-wcwidth==0.8.1
-webob==1.8.10
+wcwidth==0.8.2
+webob==1.8.11
 wheel==0.48.0
-wrapt==2.2.2
+wrapt==2.3.0
 
 # The following packages are considered to be unsafe in a requirements file:

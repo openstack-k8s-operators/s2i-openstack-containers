@@ -24,7 +24,7 @@ pycparser==3.0
 pyyaml==6.0.3
 requests==2.34.2
 resolvelib==1.2.1
-stevedore==5.9.0
+stevedore==5.9.1
 typing-extensions==4.16.0
 urllib3==2.7.0
 
