@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/openstack/requirements.git master b8de3b00af9dd2ffc1a85bf836cf3c7ee9e8bac7
-master neutron https://opendev.org/openstack/neutron.git master 759dc67239650b0e1018ba24c564c65886abd61e
+master upper-constraints https://opendev.org/openstack/requirements.git master 8150775c15f42a6aad869ca15fa6708f34a4feaf
+master neutron https://opendev.org/openstack/neutron.git master dbdbc25afa3a3a4b57728ad6669a9ac512b0c12e

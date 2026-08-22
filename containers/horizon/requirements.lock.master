@@ -15,7 +15,7 @@ django-compressor==4.6.0
 django-debreach==2.1.0
 dogpile-cache==1.5.0
 fasteners==0.20
-futurist==3.4.0
+futurist==3.5.0
 horizon==26.0.0
 idna==3.18
 iso8601==2.1.0
@@ -84,7 +84,7 @@ rpds-py==2026.6.3
 semantic-version==2.10.0
 six==1.17.0
 sqlparse==0.6.0
-stevedore==5.9.0
+stevedore==5.9.1
 typing-extensions==4.16.0
 urllib3==2.7.0
 warlock==2.1.0
