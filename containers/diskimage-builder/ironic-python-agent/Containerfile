@@ -1,0 +1,192 @@
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# RPM-only image: provides the filesystem content used as source data
+# for building ironic-python-agent ramdisk images.
+FROM ${BASE_IMAGE} as os_source
+
+LABEL summary="IPA OS image content" \
+      io.k8s.description="Container image providing filesystem content for ironic-python-agent ramdisk image builds"
+
+# Use dnf for package installs and preserve the dnf cache for the later
+# diskimage-builder run
+RUN microdnf -y install dnf && microdnf clean all
+
+# Swap packages listed in swapdeps.txt (format: old-package new-package)
+# Run before bindeps.txt installs so that swapped-in packages are available
+# as dependencies for the main package set.
+COPY ironic-python-agent/swapdeps.txt /tmp/swapdeps.txt
+RUN while IFS= read -r line; do \
+      line="${line%%#*}"; \
+      [ -z "${line// /}" ] && continue; \
+      read -r old new <<< "${line}"; \
+      echo "Swapping ${old} -> ${new}"; \
+      dnf -y swap ${old} ${new}; \
+    done < /tmp/swapdeps.txt && \
+    rm /tmp/swapdeps.txt
+
+COPY ironic-python-agent/bindeps.txt /tmp/bindeps.txt
+# dnf cache must be full for diskimage-builder run
+# hadolint ignore=DL3040
+RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then dnf -y install ${pkgs}; fi && \
+    rm /tmp/bindeps.txt
+
+# Manually copy the kernel and create a placeholder initramfs in /boot/.
+# kernel-install fails in container builds because dracut cannot copy xattrs
+# on overlayfs. Since DIB's select_boot_kernel_initrd only needs
+# /boot/vmlinuz-* and /boot/initramfs-*.img to exist, and the IPA ramdisk
+# build creates its own cpio-based initramfs, we can bypass kernel-install.
+RUN for kver in /usr/lib/modules/*/vmlinuz; do \
+      kver=$(basename $(dirname "$kver")); \
+      cp /usr/lib/modules/${kver}/vmlinuz /boot/vmlinuz-${kver}; \
+      touch /boot/initramfs-${kver}.img; \
+    done && \
+    ls /boot/vmlinuz-* > /dev/null 2>&1 || { echo "FATAL: no /boot/vmlinuz-* found"; exit 1; } && \
+    ls /boot/initramfs-*.img > /dev/null 2>&1 || { echo "FATAL: no /boot/initramfs-*.img found"; exit 1; }
+
+# Create empty mount-point directories so they exist in the tarball
+# even though their contents are excluded. DIB requires these as
+# bind-mount targets when building the chroot (e.g. proc, sys, dev).
+RUN for d in /tmp /var /proc /sys /dev /run /media /mnt; do \
+    mkdir -p "$d"; \
+done
+
+# --- Build stage ---
+FROM ${BASE_IMAGE} AS build
+
+# Copy constraints file and all source repos into the build stage
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY src/ /src/
+COPY ironic-python-agent/src/ /src/
+
+# We can force build from source of all packages optionally
+ARG PIP_NO_BINARY=""
+ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+
+COPY builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
+
+COPY pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
+RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
+    rm /tmp/pythonbuilddeps.txt
+
+COPY ironic-python-agent/pythondeps.txt /tmp/pythondeps.txt
+
+# Generate a filtered constraints file that excludes packages we build from source.
+RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
+    for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        sed -i "/^${pkg_name}[=!<>]/Id" /tmp/build-constraints.txt; \
+      fi; \
+    done
+
+# First build the wheels for the packages themselves
+RUN for pkg in /src/*/ /src/overrides/*/; do \
+      if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
+        pip3 wheel --no-cache-dir --no-deps \
+          --wheel-dir=/wheels/pkgs "${pkg}"; \
+      fi; \
+    done
+
+# Second, build the wheels for the dependencies and place them in a different directory.
+# Include any extra packages from pythondeps.txt (e.g. hardware).
+RUN pip3 wheel --no-cache-dir --no-deps \
+      --find-links=/wheels/pkgs \
+      --wheel-dir=/wheels/deps \
+      -r /deps-upper-constraints.txt \
+      -r /tmp/pythondeps.txt
+
+RUN for src_dir in /src/*/ /src/overrides/*/; do \
+      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
+        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+        commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+        echo "${pkg_name},${commit},${version}"; \
+      fi; \
+    done > /source-built-packages.txt
+
+ENV PIP_NO_BINARY=""
+# Install wheels for diskimage-builder invocation
+RUN pip3 install --no-cache-dir --prefix=/usr \
+      -c /tmp/build-constraints.txt \
+      --find-links=/wheels/pkgs \
+      --find-links=/wheels/deps \
+      /wheels/pkgs/*.whl \
+      -r /tmp/pythondeps.txt && \
+    rm /tmp/pythondeps.txt
+
+# Create a tarball of the os_source filesystem, excluding paths that are
+# not meaningful for a disk image (container metadata, mount points,
+# transient runtime state, and build artifacts).
+ENV DIB_TARBALL_PATH=/build/os_source.tar
+RUN --mount=from=os_source,src=/,dst=/os_source \
+    mkdir -p /build && \
+    tar cf ${DIB_TARBALL_PATH} \
+      --exclude='./dev/*' \
+      --exclude='./proc/*' \
+      --exclude='./sys/*' \
+      --exclude='./run/*' \
+      --exclude='./tmp/*' \
+      --exclude='./var/cache/*' \
+      --exclude='./var/tmp/*' \
+      --xattrs --xattrs-include='*' --xattrs-exclude='security.selinux' \
+      -C /os_source .
+
+ENV DIB_BIND_MOUNTS=1
+ENV DIB_NO_TMPFS=1
+ENV DIB_DEBUG_TRACE=2
+
+# All packages must be installed in the first stage and listed in bindeps.txt
+# ENV DIB_SKIP_GRUB_PACKAGE_INSTALL=True
+# ENV DIB_SKIP_BASE_PACKAGE_INSTALL=1
+ENV DIB_AVOID_PACKAGES_UPDATE=1
+ENV DIB_EPEL_DISABLED=2
+ENV DIB_IPA_HARDWARE_RDO=0
+ENV DIB_TARBALL_OUTPUT=/build/os_image.tar
+
+ENV DISTRO_NAME=centos
+ENV DIB_RELEASE=10-stream
+ENV YUM=dnf
+ENV DIB_IPA_KEEP_RPMDB=1
+
+ENV DIB_DEBUG_TRACE=1
+
+# Point source-repositories at local git checkouts (avoids network clones)
+ENV DIB_REPOLOCATION_ironic_python_agent=/src/ironic-python-agent
+# Skip cloning requirements repo — constraints injected by ipa-s2i element
+ENV DIB_INSTALLTYPE_requirements=package
+# Skip cloning glean repo — installed from pre-built wheel via PIP_FIND_LINKS
+ENV DIB_INSTALLTYPE_glean=package
+
+# Add custom elements path for ipa-s2i element
+ENV ELEMENTS_PATH=/elements
+COPY ironic-python-agent/elements/ /elements/
+
+# Build the initramfs
+RUN ironic-python-agent-builder --output /build/ironic-python-agent ipa-s2i
+
+# --- Packaging stage: fetch from build and add copy-out script ---
+FROM ${BASE_IMAGE}
+
+WORKDIR /
+COPY copy_out.sh .
+
+ARG IMAGE_NAME=ironic-python-agent
+ARG RAMDISK_FILE=${IMAGE_NAME}.initramfs
+ARG KERNEL_FILE=${IMAGE_NAME}.kernel
+ARG CHECKSUM_FILE=${IMAGE_NAME}.sha256
+ENV SRC_DIR=/build
+ENV DEST_DIR=/target
+ENV CHECKSUM_FILE=${CHECKSUM_FILE}
+
+RUN mkdir -p /build
+COPY --from=build /build/${RAMDISK_FILE} ${SRC_DIR}/
+COPY --from=build /build/${KERNEL_FILE} ${SRC_DIR}/
+WORKDIR ${SRC_DIR}
+RUN sha256sum * > ${CHECKSUM_FILE}
+
+CMD ["/copy_out.sh"]

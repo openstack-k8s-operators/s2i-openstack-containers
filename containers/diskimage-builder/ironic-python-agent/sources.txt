@@ -1,0 +1,2 @@
+master ironic-python-agent https://opendev.org/openstack/ironic-python-agent.git master 27e41e142ffce1530264d855cd52787d8e9f6041 13.1.0.dev1
+master ironic-python-agent-builder https://opendev.org/openstack/ironic-python-agent-builder.git master f3fc9a869f51579699b363123d4de1bd0001005e 7.5.0.dev8

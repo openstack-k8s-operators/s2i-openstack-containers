@@ -44,7 +44,7 @@ enabled=1
 gpgcheck=0
 countme=1
 priority=100
-includepkgs=liboath,gperftools-libs,thrift,libpmemobj,liborc2,libpmem,parquet-libs,libarrow*,blake3,libunwind,abseil-cpp,re2
+includepkgs=liboath,gperftools-libs,thrift,libpmemobj,liborc2,libpmem,parquet-libs,libarrow*,blake3,libunwind,abseil-cpp,re2,sysbench,luajit
 
 [centos10-baseos]
 name=CentOS Stream 10 - BaseOS

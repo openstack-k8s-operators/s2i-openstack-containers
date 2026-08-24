@@ -1,0 +1,4 @@
+# Package swaps for the EDPM OS image
+# Format: old-package new-package
+coreutils-single coreutils
+libcurl-minimal libcurl
