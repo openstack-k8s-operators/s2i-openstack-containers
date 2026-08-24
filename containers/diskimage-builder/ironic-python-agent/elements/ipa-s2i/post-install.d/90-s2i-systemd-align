@@ -1,0 +1,54 @@
+#!/bin/bash
+# Align systemd unit configuration with the upstream ipa-centos10-master
+# DIB image. The container base image ships different default-enabled
+# units compared to a CentOS 10 qcow2 base. Units are masked (not just
+# disabled) so that systemd's first-boot preset population cannot
+# re-enable them.
+#
+# This runs after 80-ironic-python-agent-ramdisk (from
+# ironic-python-agent-ramdisk-base) which handles the core IPA units.
+
+if [ "${DIB_DEBUG_TRACE:-0}" -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+# --- Mask units not present in upstream ipa-centos10-master ---
+
+# chrony-wait blocks boot for up to 3 minutes waiting for NTP sync;
+# upstream only enables chronyd.service
+systemctl mask chrony-wait.service
+systemctl mask chronyd-restricted.service
+
+# dhcpcd conflicts with NetworkManager which handles DHCP in upstream
+systemctl mask dhcpcd.service
+
+# Not in upstream multi-user.target.wants
+systemctl mask arp-ethers.service
+systemctl mask nftables.service
+systemctl mask lldpad.service
+systemctl mask lldpad.socket
+systemctl mask selinux-check-proper-disable.service
+
+# Not in upstream sysinit.target.wants
+systemctl mask systemd-boot-update.service
+
+# Auto-update timers not present in upstream
+systemctl mask systemd-sysupdate.timer
+systemctl mask systemd-sysupdate-reboot.timer
+
+# Container runtime services not needed in IPA ramdisk
+systemctl mask podman.socket
+systemctl mask podman-auto-update.timer
+systemctl mask netavark-dhcp-proxy.socket
+
+# Upstream does not mount tmpfs on /tmp
+systemctl mask tmp.mount
+
+# --- Enable units present in upstream ipa-centos10-master ---
+
+systemctl enable auditd.service
+systemctl enable sshd.service
+systemctl enable irqbalance.service
+systemctl enable lvm2-monitor.service

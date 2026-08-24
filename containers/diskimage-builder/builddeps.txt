@@ -1,0 +1,30 @@
+# Package dependencies for running diskimage-builder
+binutils
+bzip2
+e2fsprogs
+util-linux
+sudo
+curl
+git
+podman
+tar
+procps-ng
+dnf
+yum
+yum-utils
+
+# diskimage-builder dependencies not required as the following steps are avoided:
+# - image extraction
+# - partitioning
+# - image creation
+# - package installation
+
+guestfs-tools
+
+# dosfstools
+# gdisk
+# kpartx
+# squashfs-tools
+# qemu-img
+# libguestfs
+# gnupg
