@@ -12,7 +12,7 @@
 #   this scalar mapping format cannot express
 #
 # s2i does not build nova-compute, nova-conductor, nova-scheduler,
-# nova-novncproxy, or placement. Those OpenStackVersion fields stay on
+# or nova-novncproxy. Those OpenStackVersion fields stay on
 # operator defaults.
 openstack_version:
   custom_container_images:
@@ -97,6 +97,8 @@ openstack_version:
       - ovnNorthdImage
     ovn/ovn-sb-db-server:
       - ovnSbDbclusterImage
+    placement/placement-api:
+      - placementAPIImage
     rabbitmq/rabbitmq:
       - rabbitmqImage
     redis/redis:
