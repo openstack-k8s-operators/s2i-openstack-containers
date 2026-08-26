@@ -1,5 +1,7 @@
 # S2I OpenStack Containers Developer Guide
 
+<!-- DNM: exercise trusted quay publish via github-manual. Do not merge. -->
+
 This guide documents the repository's current build, source-maintenance, and
 contributor workflows. For a concise project introduction, see the root
 [`README.md`](../README.md). For a short testing entry point, see
