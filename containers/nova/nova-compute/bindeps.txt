@@ -1,6 +1,7 @@
 python3-libvirt
 libvirt-client
 qemu-kvm-block-rbd
+qemu-img
 e2fsprogs
 xfsprogs
 xorriso

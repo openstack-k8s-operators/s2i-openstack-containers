@@ -11,8 +11,7 @@
 #   these as cinderVolumeImages/manilaShareImages maps (backends), which
 #   this scalar mapping format cannot express
 #
-# s2i does not build nova-compute, nova-conductor, nova-scheduler,
-# nova-novncproxy, or placement. Those OpenStackVersion fields stay on
+# s2i does not build placement. That OpenStackVersion field stays on
 # operator defaults.
 openstack_version:
   custom_container_images:
@@ -79,6 +78,14 @@ openstack_version:
       - edpmNeutronSriovAgentImage
     nova/nova-api:
       - novaAPIImage
+    nova/nova-compute:
+      - novaComputeImage
+    nova/nova-conductor:
+      - novaConductorImage
+    nova/nova-novncproxy:
+      - novaNovncImage
+    nova/nova-scheduler:
+      - novaSchedulerImage
     octavia/octavia-api:
       - octaviaAPIImage
     octavia/octavia-worker:
