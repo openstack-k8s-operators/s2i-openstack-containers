@@ -603,6 +603,23 @@ default branch. Linters always run. Manual `workflow_dispatch` runs everything.
 When build or push runs, **all** images are built together so every container
 for a commit shares the same `master-<sha>` tag and consistent OS packages.
 
+## Python vulnerability scanning
+
+GitHub Actions runs [OSV-Scanner](https://google.github.io/osv-scanner/) against
+committed `requirements.lock.<stream>` files (the `pip-compile` output that
+images actually install). Unpinned `pythondeps.txt` files are not scanned.
+
+- **Pull requests** compare the target branch to the PR and fail only when the
+  change **introduces** new vulnerabilities. Existing findings inherited from
+  OpenStack upper-constraints do not block the PR.
+- **Weekly (Monday) and pushes to `main`** run a full inventory and upload SARIF
+  to the repository **Security → Code scanning** tab. That job does not fail the
+  workflow, so known issues stay visible without turning `main` red.
+
+Document accepted exceptions in [`osv-scanner.toml`](../osv-scanner.toml) with a
+reason and an `ignoreUntil` date. Image and RPM CVE scanning remains a Konflux
+concern; this workflow covers declared Python dependencies only.
+
 ## Adding a new service
 
 1. Create the project directory structure:
