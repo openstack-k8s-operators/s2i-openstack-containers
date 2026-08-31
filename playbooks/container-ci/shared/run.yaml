@@ -194,6 +194,45 @@
     - name: Stage Zuul source checkouts for speculative builds
       ansible.builtin.include_tasks: stage-zuul-sources.yaml
 
+    # Staged sources may need newer deps than the committed constraints
+    # snapshot; re-resolve via tox (tox.ini pins) before building.
+    - name: Regenerate constraints and lockfiles for projects with staged sources
+      when: s2i_ci_staged_projects | default([]) | length > 0
+      block:
+        # Must match base_python in tox.ini
+        - name: Install Python for lockfile tooling
+          become: true
+          ansible.builtin.package:
+            name:
+              - python3.12
+            state: present
+
+        - name: Create tox venv
+          become: true
+          ansible.builtin.command:
+            cmd: python3.12 -m venv /opt/s2i-ci-tox
+            creates: /opt/s2i-ci-tox/bin/pip
+
+        - name: Install tox
+          become: true
+          ansible.builtin.command:
+            cmd: /opt/s2i-ci-tox/bin/pip install --quiet tox
+          changed_when: true
+
+        - name: Regenerate constraints and lockfiles with staged sources
+          ansible.builtin.command:
+            argv:
+              - /opt/s2i-ci-tox/bin/tox
+              - "-e"
+              - update-sources
+              - "--"
+              - "{{ item }}"
+            chdir: "{{ s2i_ci_container_repo }}"
+          environment:
+            STREAM: "{{ s2i_ci_stream }}"
+          loop: "{{ s2i_ci_staged_projects }}"
+          changed_when: true
+
     - name: Build selected images
       ansible.builtin.command:
         argv:

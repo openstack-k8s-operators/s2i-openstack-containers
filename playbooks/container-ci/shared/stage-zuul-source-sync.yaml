@@ -3,6 +3,8 @@
 #
 # s2i_ci_src is a list: [name, canonical_project, url, dest_dir]
 # from `build.sh list-sources` output.
+#
+# Sets s2i_ci_staged_projects fact (projects actually synced) for callers.
 
 - name: "Resolve Zuul checkout path for {{ s2i_ci_src[0] }}"
   ansible.builtin.set_fact:
@@ -41,3 +43,11 @@
     - name: "Log staged source for {{ s2i_ci_src[0] }}"
       ansible.builtin.debug:
         msg: "Staged {{ s2i_ci_src[1] }} -> {{ s2i_ci_sync_to }}"
+
+    - name: "Record staged project for {{ s2i_ci_src[0] }}"
+      ansible.builtin.set_fact:
+        s2i_ci_staged_projects: >-
+          {{ (s2i_ci_staged_projects | default([]))
+             + [(s2i_ci_src[3] | default(''))
+                | regex_replace('^.*containers/([^/]+)/src/.*$', '\\1')]
+             | unique | list }}
