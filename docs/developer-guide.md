@@ -686,10 +686,9 @@ PARALLEL=1 ./build.sh auto-detect opendev.org/openstack/tempest master
 
 ### Source staging
 
-After auto-detection resolves the image list, the pipeline stages Zuul's
-source checkouts into the container build contexts. This replaces the
-pinned source with the patched version so the built image includes the
-speculative change.
+Zuul jobs stage workspace checkouts into container `src/` directories
+before `build.sh build` runs. This avoids redundant git clones over the
+network when Zuul has already prepared the repositories.
 
 The staging playbook (`shared/stage-zuul-sources.yaml`) delegates all
 `sources.txt` parsing to `build.sh list-sources`, keeping build.sh as the
@@ -698,8 +697,34 @@ single source of truth for the source manifest format.
 `list-sources` emits project paths as they appear in `sources.txt`
 (`openstack/tempest`). Zuul's `zuul.projects` is keyed by canonical
 names (`opendev.org/openstack/tempest`). The staging playbook maps both
-forms so speculative checkouts are copied into `src/` instead of
-building from the pinned git hash.
+forms so checkouts are copied into `src/` instead of cloning from the
+network.
+
+`s2i_ci_prefer_shas` controls whether staged repos are checked out at
+the `sources.txt` pin after rsync. Leave the job default **false** so
+operator children and OpenDev speculative builds keep Zuul's checkout.
+Set it **true** only on s2i-repo pipelines: this repository's
+`github-check` content-provider (`zuul.d/projects.yaml`) and the
+OpenDev post-merge build-push job in the config tenant. Even when the
+variable is true, a project that appears in `zuul['items']` is never
+rewound to the pin.
+
+The GitHub tenant for this repository does not register most OpenDev
+projects, so `required-projects` for full clone coverage is generated
+only in the config tenant. Sources that Zuul did not clone are still
+fetched by `build.sh` at the pinned hash. Regenerate after
+`sources.txt` changes:
+
+```bash
+STREAM=master ./scripts/create-zuul-required-projects.sh \
+  --output ../config/zuul.d/s2i-source-required-projects.yaml \
+  --allow-from ../config/zuul.d
+```
+
+`--allow-from` limits the list to projects already registered in that
+tenant (parsed from `- project:` `name:` stanzas). Sources that are not
+tenant projects stay out of `required-projects` and are still cloned by
+`build.sh`.
 
 Staging alone is not enough: committed `requirements.lock.<stream>` still
 pins the last `update-sources` run. After any sources are staged, the
@@ -728,10 +753,16 @@ dependencies of an image target:
 
 ```bash
 PARALLEL=1 ./build.sh list-sources tempest/tempest master
-# Output: name|canonical_project|url|dest_dir
-# tempest|openstack/tempest|https://opendev.org/openstack/tempest.git|/.../containers/tempest/src/tempest
-# barbican-tempest-plugin|openstack/barbican-tempest-plugin|https://...
+# Output: name|canonical_project|url|dest_dir|pinned_hash
+# tempest|openstack/tempest|https://opendev.org/openstack/tempest.git|/.../src/tempest|<sha>
+# barbican-tempest-plugin|openstack/barbican-tempest-plugin|https://...|<sha>
 ```
+
+`build.sh list-required-projects` prints the Zuul canonical names for
+every OpenDev repo referenced by `sources.txt` in the active stream.
+Use `scripts/create-zuul-required-projects.sh --allow-from` to render the
+OpenDev config tenant's `s2i-openstack-zuul-sources-base` job definition
+from tenant-registered projects only.
 
 This is used by the Ansible playbooks but is also useful for debugging
 which upstream repos feed into a given image.

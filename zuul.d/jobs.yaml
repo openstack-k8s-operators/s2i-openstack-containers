@@ -36,6 +36,9 @@
       s2i_ci_images: all
       s2i_ci_stream: master
       s2i_ci_content_provider: true
+      # Default false so operator / OpenDev children keep Zuul checkouts.
+      # This repo's github-check sets true in zuul.d/projects.yaml.
+      # Config build-push sets true in the OpenDev tenant.
 
 - job:
     name: s2i-speculative-deploy-test-base
