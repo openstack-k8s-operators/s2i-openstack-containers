@@ -700,8 +700,48 @@ auto_detect() {
   printf '%s\n' "${matches[@]}"
 }
 
+# Convert a git remote URL to a Zuul project canonical name.
+# Args: <url>
+url_to_zuul_project() {
+  local url="$1"
+  local path="${url#*://}"
+  local host="${path%%/*}"
+  path="${path#*/}"
+  path="${path%.git}"
+  echo "${host}/${path}"
+}
+
+# List Zuul project canonical names referenced by sources.txt for a stream.
+# Used to generate required-projects for CI jobs. Includes upper-constraints
+# (openstack/requirements) and all other pinned source repos.
+# Args: [stream]
+list_required_projects() {
+  local stream="${1:-${STREAM:-master}}"
+  declare -A _seen_projects=()
+
+  while IFS= read -r sources_file; do
+    while IFS= read -r line; do
+      [[ -z "${line}" || "${line}" == \#* ]] && continue
+      read -r entry_stream _name url _branch _hash <<< "${line}"
+      [[ "${entry_stream}" != "${stream}" ]] && continue
+      local canonical
+      canonical="$(url_to_zuul_project "${url}")"
+      # Only OpenDev repos are Zuul tenant projects. GitHub/GitLab
+      # sources are still cloned by build.sh when not in the workspace.
+      [[ "${canonical%%/*}" == "opendev.org" ]] || continue
+      _seen_projects["${canonical}"]=1
+    done < "${sources_file}"
+  done < <(find "${CONTAINERS_DIR}" -name sources.txt -print | sort)
+
+  local proj
+  for proj in "${!_seen_projects[@]}"; do
+    echo "${proj}"
+  done | sort
+}
+
 # List source dependencies for an image target.
-# Outputs pipe-delimited records: name|canonical_project|url|dest_dir
+# Outputs pipe-delimited records:
+#   name|canonical_project|url|dest_dir|pinned_hash
 # Used by Ansible playbooks to stage Zuul sources without re-parsing
 # sources.txt themselves (build.sh is the single source of truth).
 # Args: <image-target> [stream]
@@ -737,16 +777,16 @@ list_sources() {
 
   declare -A _seen_sources=()
   for sources_file in "${sources_files[@]}"; do
-    while IFS=' ' read -r entry_stream name url _branch _hash; do
+    while IFS=' ' read -r entry_stream name url _branch pinned_hash; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
       [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
       [[ -n "${_seen_sources[${name}]:-}" ]] && continue
       _seen_sources["${name}"]=1
 
-      local url_path="${url#*://}"
+      local url_path
+      url_path="$(url_to_zuul_project "${url}")"
       url_path="${url_path#*/}"
-      url_path="${url_path%.git}"
 
       local dest_dir
       if [[ "${target}" == "base" ]]; then
@@ -755,10 +795,11 @@ list_sources() {
         dest_dir="${CONTAINERS_DIR}/${project}/src/${name}"
       fi
 
-      echo "${name}|${url_path}|${url}|${dest_dir}"
+      echo "${name}|${url_path}|${url}|${dest_dir}|${pinned_hash}"
     done < "${sources_file}"
   done
 }
+
 # Clone a repo at a branch tip (or tag) and store the resolved commit hash
 # in _CLONE_RESULT.  Must NOT be called via command substitution ($(...))
 # because _AUTO_CLONED assignments would be lost in the subshell.
@@ -1645,6 +1686,9 @@ case "${ACTION}" in
     fi
     list_sources "${TARGETS[0]}" "${TARGETS[1]:-}"
     ;;
+  list-required-projects)
+    list_required_projects "${TARGETS[0]:-}"
+    ;;
   sync-locks)
     sync_locks "${TARGETS[@]}" "${STREAM}"
     ;;
@@ -1755,7 +1799,7 @@ case "${ACTION}" in
     list_images
     ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|sync-locks|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|list-required-projects|sync-locks|update-sources|update-lockfiles|install-deps|list} [target ...]"
     echo ""
     echo "Commands:"
     echo "  build              Build one or more images sequentially"
@@ -1771,7 +1815,9 @@ case "${ACTION}" in
     echo "  auto-detect        Given an upstream project path (e.g. openstack/nova), print"
     echo "                     the container images whose sources.txt references that project"
     echo "  list-sources       Print pipe-delimited source records for a target:"
-    echo "                     name|canonical_project|url|dest_dir"
+    echo "                     name|canonical_project|url|dest_dir|pinned_hash"
+    echo "  list-required-projects  Print Zuul canonical names for all sources.txt"
+    echo "                     repos in the active stream (for required-projects)"
     echo "  sync-locks         Relock current src/ trees against current constraints"
     echo "                     without advancing sources.txt pins. Used by speculative CI"
     echo "                     after staging Zuul checkouts."
