@@ -16,8 +16,13 @@ _SKIP = {
 
 def _check_output(args, *pargs, **kwargs):
     if isinstance(args, (list, tuple)) and tuple(args) in _SKIP:
-        return ""
-    return _real_check_output(args, *pargs, **kwargs)
+        return b"" if not kwargs.get("universal_newlines") else ""
+    try:
+        return _real_check_output(args, *pargs, **kwargs)
+    except FileNotFoundError:
+        if isinstance(args, (list, tuple)) and args and args[0] == "git":
+            return b"" if not kwargs.get("universal_newlines") else ""
+        raise
 
 
 subprocess.check_output = _check_output
