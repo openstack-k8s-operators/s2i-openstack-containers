@@ -48,7 +48,13 @@
 #   Sources are cloned into containers/<project>/src/<name>/ based on the
 #   stream entries in sources.txt. If the directory already exists, it is
 #   used as-is (sources.txt is ignored for that entry). Auto-cloned repos
-#   are removed on exit.
+#   are removed on exit. Pin clones fetch only the recorded commit
+#   (--depth 1) and unique dests are cloned in parallel (PARALLEL).
+#   Set FULL_CLONE to fetch full history instead. Existing src/ trees
+#   (local work, Zuul staging) are never replaced.
+#   update-sources resolves branch tips with git ls-remote (no clone to
+#   discover the SHA). Missing service sources are then cloned at that
+#   tip (shallow). upper-constraints.txt is fetched as a single file.
 #
 #   Overrides: place patched dependencies in containers/<project>/src/overrides/<pkg>/
 #   These are picked up automatically — no sources.txt entry needed.
@@ -88,6 +94,9 @@
 #   SKIP_HASH_UPDATE  If set, update-sources skips updating pinned hashes in
 #                     sources.txt and clones repos at existing pinned hashes
 #                     instead. Lockfiles and rpms.in.yaml are still regenerated.
+#   FULL_CLONE        If set, pin clones fetch full git history instead of
+#                     --depth 1. Default is shallow (CI and local builds
+#                     only need the pinned tree).
 #   REQUIREMENTS_SRC  Directory containing upper-constraints.txt. When set,
 #                     sync-locks copies that file instead of fetching the
 #                     stream branch tip (used when Zuul has checked out
@@ -134,6 +143,9 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 else
   PARALLEL="${PARALLEL:-$(nproc)}"
 fi
+FULL_CLONE="${FULL_CLONE:-}"
+GIT_TERMINAL_PROMPT="${GIT_TERMINAL_PROMPT:-0}"
+export GIT_TERMINAL_PROMPT
 
 # Discover all buildable images from the directory structure.
 discover_images() {
@@ -207,6 +219,9 @@ image_tag_args() {
 
 # Track which repos were auto-cloned so we can clean up
 declare -A _AUTO_CLONED=()
+# Cache upper-constraints.txt by "url hash" so many projects sharing
+# requirements.git do not each clone it.
+declare -A _UC_FILE_CACHE=()
 
 # Remove auto-cloned sources on exit
 cleanup_auto() {
@@ -216,6 +231,122 @@ cleanup_auto() {
   done
 }
 trap cleanup_auto EXIT
+
+# Fetch a single commit into dest (--depth 1). Returns 1 if the server
+# refuses a SHA want; caller falls back to a full clone.
+# Args: <dest_dir> <url> <pinned_hash>
+_clone_shallow_pin() {
+  local dest="$1"
+  local url="$2"
+  local pinned_hash="$3"
+
+  mkdir -p "${dest}"
+  git -C "${dest}" init --quiet
+  git -C "${dest}" remote add origin "${url}"
+  if ! git -C "${dest}" fetch --quiet --depth 1 origin "${pinned_hash}"; then
+    rm -rf "${dest}"
+    return 1
+  fi
+  if ! git -C "${dest}" -c advice.detachedHead=false \
+        checkout --quiet --detach "${pinned_hash}"; then
+    rm -rf "${dest}"
+    return 1
+  fi
+}
+
+# Resolve a branch, tag, or 40-char SHA to a commit without cloning.
+# Args: <url> <ref>
+# Prints the SHA on stdout. Returns 1 if the ref cannot be resolved.
+_resolve_ref_sha() {
+  local url="$1"
+  local ref="$2"
+  local line sha
+
+  if [[ "${ref}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    printf '%s\n' "${ref}"
+    return 0
+  fi
+
+  line=$(git ls-remote --exit-code --refs "${url}" "refs/heads/${ref}" 2>/dev/null) || \
+    line=$(git ls-remote --exit-code --refs "${url}" "refs/tags/${ref}" 2>/dev/null) || \
+    line=""
+  sha="${line%%$'\t'*}"
+  sha="${sha%% *}"
+  if [[ -n "${sha}" ]]; then
+    printf '%s\n' "${sha}"
+    return 0
+  fi
+  return 1
+}
+
+# Copy one path from url at sha into dest_file using a blobless fetch.
+# Returns 1 if the server does not support --filter=blob:none.
+# Args: <url> <sha> <relpath> <dest_file>
+_fetch_file_at_commit() {
+  local url="$1"
+  local sha="$2"
+  local relpath="$3"
+  local dest_file="$4"
+  local tmp_repo
+
+  tmp_repo=$(mktemp -d)
+  git -C "${tmp_repo}" init --bare --quiet
+  git -C "${tmp_repo}" remote add origin "${url}"
+  if git -C "${tmp_repo}" fetch --quiet --depth 1 --filter=blob:none \
+        origin "${sha}" 2>/dev/null && \
+     git -C "${tmp_repo}" show "${sha}:${relpath}" > "${dest_file}" 2>/dev/null && \
+     [[ -f "${dest_file}" ]]; then
+    rm -rf "${tmp_repo}"
+    return 0
+  fi
+  rm -f "${dest_file}"
+  rm -rf "${tmp_repo}"
+  return 1
+}
+
+# Copy upper-constraints.txt from url at pin into dest_file.
+# Reuses a previous fetch of the same url+hash in this process.
+# Args: <url> <pinned_hash> <dest_file>
+_fetch_pinned_constraints() {
+  local url="$1"
+  local pinned_hash="$2"
+  local dest_file="$3"
+  local cache_key="${url} ${pinned_hash}"
+
+  if [[ -n "${_UC_FILE_CACHE[${cache_key}]:-}" && -f "${_UC_FILE_CACHE[${cache_key}]}" ]]; then
+    if [[ "${_UC_FILE_CACHE[${cache_key}]}" != "${dest_file}" ]]; then
+      cp "${_UC_FILE_CACHE[${cache_key}]}" "${dest_file}"
+    fi
+    return
+  fi
+
+  local tmp_repo src_file
+  if [[ -z "${FULL_CLONE}" ]] && \
+       _fetch_file_at_commit "${url}" "${pinned_hash}" \
+         "${UPSTREAM_CONSTRAINTS}" "${dest_file}"; then
+    _UC_FILE_CACHE["${cache_key}"]="${dest_file}"
+    return
+  fi
+
+  tmp_repo=$(mktemp -d)
+  if [[ -z "${FULL_CLONE}" ]] && _clone_shallow_pin "${tmp_repo}/repo" "${url}" "${pinned_hash}"; then
+    src_file="${tmp_repo}/repo/${UPSTREAM_CONSTRAINTS}"
+  else
+    rm -rf "${tmp_repo}/repo"
+    git clone --quiet --no-checkout "${url}" "${tmp_repo}/repo"
+    git -C "${tmp_repo}/repo" checkout "${pinned_hash}" -- "${UPSTREAM_CONSTRAINTS}"
+    src_file="${tmp_repo}/repo/${UPSTREAM_CONSTRAINTS}"
+  fi
+
+  if [[ ! -f "${src_file}" ]]; then
+    echo "ERROR: ${UPSTREAM_CONSTRAINTS} missing at ${pinned_hash} in ${url}" >&2
+    rm -rf "${tmp_repo}"
+    return 1
+  fi
+  cp "${src_file}" "${dest_file}"
+  _UC_FILE_CACHE["${cache_key}"]="${dest_file}"
+  rm -rf "${tmp_repo}"
+}
 
 # Ensure constraints file exists for a project.
 # Looks for an "upper-constraints" entry in the project's sources.txt
@@ -237,12 +368,7 @@ ensure_project_constraints() {
       [[ "${entry_stream}" != "${stream}" ]] && continue
       if [[ "${name}" == "upper-constraints" ]]; then
         echo "--- Fetching ${UPSTREAM_CONSTRAINTS}.${stream} for ${project} from ${url} at ${pinned_hash} ---"
-        local tmp_repo
-        tmp_repo=$(mktemp -d)
-        git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null
-        git -C "${tmp_repo}" checkout "${pinned_hash}" -- upper-constraints.txt
-        cp "${tmp_repo}/upper-constraints.txt" "${constraints_file}"
-        rm -rf "${tmp_repo}"
+        _fetch_pinned_constraints "${url}" "${pinned_hash}" "${constraints_file}"
         return
       fi
     done < "${project_sources}"
@@ -281,25 +407,18 @@ refresh_project_constraints() {
     return
   fi
 
-  while IFS=' ' read -r entry_stream name url branch pinned_hash; do
+  while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
     [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
     [[ "${entry_stream}" != "${stream}" ]] && continue
     if [[ "${name}" == "upper-constraints" ]]; then
       echo "--- Fetching ${UPSTREAM_CONSTRAINTS}.${stream} for ${project} from ${url} at ${branch} tip ---"
-      local tmp_repo tip_hash
-      tmp_repo=$(mktemp -d)
-      git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null
-      tip_hash=$(git -C "${tmp_repo}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-        || git -C "${tmp_repo}" rev-parse --verify "${branch}" 2>/dev/null)
-      if [[ -z "${tip_hash}" ]]; then
+      local tip_hash
+      if ! tip_hash=$(_resolve_ref_sha "${url}" "${branch}"); then
         echo "ERROR: Could not resolve ref '${branch}' for ${url}" >&2
-        rm -rf "${tmp_repo}"
         return 1
       fi
-      git -C "${tmp_repo}" checkout "${tip_hash}" -- upper-constraints.txt
-      cp "${tmp_repo}/upper-constraints.txt" "${constraints_file}"
+      _fetch_pinned_constraints "${url}" "${tip_hash}" "${constraints_file}"
       echo "  upper-constraints: using ${tip_hash} (${branch} tip; pin ${pinned_hash} unchanged)"
-      rm -rf "${tmp_repo}"
       return
     fi
   done < "${project_sources}"
@@ -348,7 +467,9 @@ ensure_artifacts() {
   done < "${artifacts_file}"
 }
 
-# Clone a repo at a specific commit hash if not already present
+# Clone a repo at a specific commit hash if not already present.
+# Default is a shallow pin (--depth 1). FULL_CLONE fetches full history.
+# If the server rejects a SHA want, falls back to a full clone.
 # Args: <dest_dir> <url> <pinned_hash>
 clone_at_hash() {
   local dest="$1"
@@ -361,9 +482,183 @@ clone_at_hash() {
 
   mkdir -p "$(dirname "${dest}")"
   echo "--- Cloning ${url} at ${pinned_hash} into ${dest} ---"
+
+  if [[ -z "${FULL_CLONE}" ]] && _clone_shallow_pin "${dest}" "${url}" "${pinned_hash}"; then
+    _AUTO_CLONED["${dest}"]=1
+    return
+  fi
+
+  rm -rf "${dest}"
+  if [[ -z "${FULL_CLONE}" ]]; then
+    echo "--- Shallow fetch failed for ${url} at ${pinned_hash}; cloning full history ---"
+  fi
   git clone "${url}" "${dest}"
   git -C "${dest}" checkout "${pinned_hash}"
   _AUTO_CLONED["${dest}"]=1
+}
+
+# Walk project- and image-level sources.txt entries for dir_name/stream.
+# Calls callback with: <dest_dir> <url> <pinned_hash> <project>
+_for_each_source() {
+  local dir_name="$1"
+  local stream="$2"
+  local callback="$3"
+  local project="${dir_name%%/*}"
+
+  local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
+  if [[ -f "${project_sources}" ]]; then
+    local project_src_dir="${CONTAINERS_DIR}/${project}/src"
+    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
+      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+      [[ "${entry_stream}" != "${stream}" ]] && continue
+      [[ "${name}" == "upper-constraints" ]] && continue
+      "${callback}" "${project_src_dir}/${name}" "${url}" "${pinned_hash}" "${project}"
+    done < "${project_sources}"
+  fi
+
+  if [[ "${dir_name}" == */* ]]; then
+    local image_sources="${CONTAINERS_DIR}/${dir_name}/sources.txt"
+    if [[ -f "${image_sources}" ]]; then
+      local image_src_dir="${CONTAINERS_DIR}/${dir_name}/src"
+        while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
+          [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+          [[ "${entry_stream}" != "${stream}" ]] && continue
+          [[ "${name}" == "upper-constraints" ]] && continue
+          "${callback}" "${image_src_dir}/${name}" "${url}" "${pinned_hash}" "${project}"
+        done < "${image_sources}"
+    fi
+  fi
+}
+
+_ensure_one_source() {
+  clone_at_hash "$1" "$2" "$3"
+  apply_requirement_exclusions "$4" "$1"
+}
+
+_collect_clone_job() {
+  local dest="$1"
+  local url="$2"
+  local pinned_hash="$3"
+  local project="$4"
+  [[ -n "${_clone_seen[${dest}]:-}" ]] && return
+  _clone_seen["${dest}"]=1
+  _clone_dests+=("${dest}")
+  _clone_urls+=("${url}")
+  _clone_hashes+=("${pinned_hash}")
+  _clone_projects+=("${project}")
+}
+
+# Clone unique missing sources for resolved image targets in parallel.
+# Existing dests (local or Zuul-staged) are left in place. Parent records
+# _AUTO_CLONED before spawning so cleanup still runs after worker subshells.
+# Args: <image> [<image> ...] <stream>
+preclone_sources_for_targets() {
+  local stream="${!#}"
+  local targets_args=("${@:1:$#-1}")
+
+  if [[ ${#targets_args[@]} -eq 0 ]]; then
+    return
+  fi
+
+  if [[ ! "${PARALLEL}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: PARALLEL must be a positive integer" >&2
+    return 1
+  fi
+
+  _clone_dests=()
+  _clone_urls=()
+  _clone_hashes=()
+  _clone_projects=()
+  declare -A _clone_seen=()
+
+  local img
+  for img in "${targets_args[@]}"; do
+    _for_each_source "${img}" "${stream}" _collect_clone_job
+  done
+
+  local n="${#_clone_dests[@]}"
+  if [[ "${n}" -eq 0 ]]; then
+    return
+  fi
+
+  local missing=0
+  local i dest url hash
+  for i in "${!_clone_dests[@]}"; do
+    dest="${_clone_dests[i]}"
+    [[ -d "${dest}" ]] || missing=$((missing + 1))
+  done
+
+  if [[ "${missing}" -gt 0 ]]; then
+    echo "--- Cloning ${missing} unique sources (max ${PARALLEL} parallel) ---"
+  fi
+  local _cl_fail=0
+  local _cl_running=0
+  declare -A _cl_pids=()
+
+  for i in "${!_clone_dests[@]}"; do
+    dest="${_clone_dests[i]}"
+    url="${_clone_urls[i]}"
+    hash="${_clone_hashes[i]}"
+    [[ -d "${dest}" ]] && continue
+
+    while [[ ${_cl_running} -ge ${PARALLEL} ]]; do
+      local _cl_finished=""
+      if wait -n -p _cl_finished "${!_cl_pids[@]}"; then
+        unset '_cl_pids['"${_cl_finished}"']'
+        ((_cl_running--)) || true
+      else
+        _cl_fail=1
+        [[ -n "${_cl_finished}" ]] && unset '_cl_pids['"${_cl_finished}"']'
+        break 2
+      fi
+    done
+
+    mkdir -p "$(dirname "${dest}")"
+    _AUTO_CLONED["${dest}"]=1
+    (
+      clone_at_hash "${dest}" "${url}" "${hash}"
+    ) &
+    _cl_pids[$!]=1
+    ((_cl_running++)) || true
+  done
+
+  if [[ ${_cl_fail} -eq 0 ]]; then
+    while [[ ${_cl_running} -gt 0 ]]; do
+      local _cl_finished=""
+      if wait -n -p _cl_finished "${!_cl_pids[@]}"; then
+        unset '_cl_pids['"${_cl_finished}"']'
+        ((_cl_running--)) || true
+      else
+        _cl_fail=1
+        [[ -n "${_cl_finished}" ]] && unset '_cl_pids['"${_cl_finished}"']'
+        break
+      fi
+    done
+  fi
+
+  if [[ ${_cl_fail} -eq 1 ]]; then
+    echo "ERROR: A source clone failed; stopping remaining clones" >&2
+    local _cl_pid
+    for _cl_pid in "${!_cl_pids[@]}"; do
+      kill "${_cl_pid}" 2>/dev/null || true
+    done
+    wait 2>/dev/null || true
+    return 1
+  fi
+
+  for i in "${!_clone_dests[@]}"; do
+    apply_requirement_exclusions "${_clone_projects[i]}" "${_clone_dests[i]}"
+  done
+}
+
+# Process sources.txt files for a stream.
+# Project-level sources → containers/<project>/src/<name>/
+# Image-level sources → containers/<project>/<image>/src/<name>/
+# sources.txt format: <stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>
+ensure_sources_for_stream() {
+  local dir_name="$1"
+  local stream="$2"
+  _for_each_source "${dir_name}" "${stream}" _ensure_one_source
 }
 
 # Strip excluded runtime requirements from a cloned source tree.
@@ -391,42 +686,6 @@ apply_requirement_exclusions() {
     # prefix like 'awscurl-foo' is not removed by mistake. Case-insensitive.
     sed -i -E "/^${pkg}([[:space:]<>=!~;,#[]|\$)/Id" "${req_file}"
   done
-}
-
-# Process sources.txt files for a stream.
-# Project-level sources → containers/<project>/src/<name>/
-# Image-level sources → containers/<project>/<image>/src/<name>/
-# sources.txt format: <stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>
-ensure_sources_for_stream() {
-  local dir_name="$1"   # e.g., "watcher/watcher-api"
-  local stream="$2"
-  local project="${dir_name%%/*}"
-
-  # Project-level sources.txt → containers/<project>/src/<name>/
-  local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
-  if [[ -f "${project_sources}" ]]; then
-    local project_src_dir="${CONTAINERS_DIR}/${project}/src"
-    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
-      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
-      [[ "${entry_stream}" != "${stream}" ]] && continue
-      [[ "${name}" == "upper-constraints" ]] && continue
-      clone_at_hash "${project_src_dir}/${name}" "${url}" "${pinned_hash}"
-      apply_requirement_exclusions "${project}" "${project_src_dir}/${name}"
-    done < "${project_sources}"
-  fi
-
-  # Image-level sources.txt → containers/<project>/<image>/src/<name>/
-  local image_sources="${CONTAINERS_DIR}/${dir_name}/sources.txt"
-  if [[ -f "${image_sources}" ]]; then
-    local image_src_dir="${CONTAINERS_DIR}/${dir_name}/src"
-    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
-      [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
-      [[ "${entry_stream}" != "${stream}" ]] && continue
-      [[ "${name}" == "upper-constraints" ]] && continue
-      clone_at_hash "${image_src_dir}/${name}" "${url}" "${pinned_hash}"
-      apply_requirement_exclusions "${project}" "${image_src_dir}/${name}"
-    done < "${image_sources}"
-  fi
 }
 
 # Build a single image
@@ -709,7 +968,7 @@ auto_detect() {
                        "${CONTAINERS_DIR}"/*/*/sources.txt; do
     [[ -f "${sources_file}" ]] || continue
 
-    while IFS=' ' read -r entry_stream name url _branch _hash; do
+    while IFS=' ' read -r entry_stream name url _branch _hash _version; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
       [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
@@ -792,7 +1051,7 @@ list_sources() {
 
   declare -A _seen_sources=()
   for sources_file in "${sources_files[@]}"; do
-    while IFS=' ' read -r entry_stream name url _branch _hash; do
+    while IFS=' ' read -r entry_stream name url _branch _hash _version; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
       [[ -n "${stream}" && "${entry_stream}" != "${stream}" ]] && continue
@@ -817,25 +1076,35 @@ list_sources() {
 # Clone a repo at a branch tip (or tag) and store the resolved commit hash
 # in _CLONE_RESULT.  Must NOT be called via command substitution ($(...))
 # because _AUTO_CLONED assignments would be lost in the subshell.
+# Resolves the tip with git ls-remote, then clone_at_hash (shallow pin).
+# Falls back to a full clone --branch if ls-remote cannot resolve the ref.
 # If the destination already exists, use it as-is (same policy as clone_at_hash).
 # Args: <dest_dir> <url> <branch>
 clone_at_branch() {
   local dest="$1"
   local url="$2"
   local branch="$3"
+  local sha=""
 
   if [[ -d "${dest}" ]]; then
     echo "--- Using existing source: ${dest} ---"
-  else
-    mkdir -p "$(dirname "${dest}")"
-    echo "--- Cloning ${url} (${branch}) into ${dest} ---"
-    if ! git clone --branch "${branch}" "${url}" "${dest}" 2>/dev/null; then
-      git clone "${url}" "${dest}" 2>/dev/null
-      git -C "${dest}" checkout "${branch}"
-    fi
-    _AUTO_CLONED["${dest}"]=1
+    _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
+    return
   fi
 
+  if sha=$(_resolve_ref_sha "${url}" "${branch}"); then
+    clone_at_hash "${dest}" "${url}" "${sha}"
+    _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
+    return
+  fi
+
+  mkdir -p "$(dirname "${dest}")"
+  echo "--- ls-remote failed for ${url} (${branch}); cloning ---"
+  if ! git clone --branch "${branch}" "${url}" "${dest}" 2>/dev/null; then
+    git clone "${url}" "${dest}" 2>/dev/null
+    git -C "${dest}" checkout "${branch}"
+  fi
+  _AUTO_CLONED["${dest}"]=1
   _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
 }
 
@@ -862,8 +1131,10 @@ calculate_source_version() {
 }
 
 # Update pinned hashes and package versions in a single sources.txt file for
-# the given stream. Clones source repos at the branch tip to resolve hashes,
-# and extracts upper-constraints.txt when encountered.
+# the given stream. Resolves branch tips with git ls-remote. Service sources
+# are cloned at the tip (shallow) so lock generation can read the tree.
+# upper-constraints.txt is fetched as a single file, never as a full
+# requirements clone.
 # Args: <sources_file> <stream> <src_dir> <project_dir>
 update_sources_file() {
   local sources_file="$1"
@@ -886,6 +1157,7 @@ update_sources_file() {
       continue
     fi
 
+    local entry_stream name url branch pinned_hash pinned_version extra
     read -r entry_stream name url branch pinned_hash pinned_version extra <<< "${line}"
     if [[ -n "${extra:-}" ]]; then
       echo "ERROR: Malformed source entry in ${sources_file}: ${line}" >&2
@@ -905,16 +1177,15 @@ update_sources_file() {
       if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
         new_hash="${pinned_hash}"
       else
-        # Clone without checkout, resolve hash from branch, extract file
-        local uc_tmp
-        uc_tmp=$(mktemp -d)
-        git clone --no-checkout "${url}" "${uc_tmp}" 2>/dev/null
-        new_hash=$(git -C "${uc_tmp}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-          || git -C "${uc_tmp}" rev-parse --verify "${branch}" 2>/dev/null)
-        git -C "${uc_tmp}" checkout "${new_hash}" -- upper-constraints.txt
-        cp "${uc_tmp}/upper-constraints.txt" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
-        rm -rf "${uc_tmp}"
+        if ! new_hash=$(_resolve_ref_sha "${url}" "${branch}"); then
+          echo "ERROR: Could not resolve ref '${branch}' for ${url}" >&2
+          rm "${tmp_file}"
+          return 1
+        fi
       fi
+      echo "--- Fetching ${UPSTREAM_CONSTRAINTS}.${stream} from ${url} at ${new_hash} ---"
+      _fetch_pinned_constraints "${url}" "${new_hash}" \
+        "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
     elif [[ -d "${src_dir}/${name}" ]]; then
       # Pre-existing checkout — use it for dependency generation but retain the
       # pin. Refuse to pair it with metadata calculated from a different commit.
@@ -1440,6 +1711,8 @@ ensure_sources_for_targets() {
   local targets
   targets=($(resolve_targets "${targets_args[@]}"))
 
+  preclone_sources_for_targets "${targets[@]}" "${stream}" || return 1
+
   declare -A _ensure_projects_seen
 
   for img in "${targets[@]}"; do
@@ -1453,8 +1726,6 @@ ensure_sources_for_targets() {
       fi
       continue
     fi
-
-    ensure_sources_for_stream "${img}" "${stream}"
 
     if [[ -z "${_ensure_projects_seen[$project]:-}" ]]; then
       _ensure_projects_seen["${project}"]=1
@@ -1549,6 +1820,8 @@ sync_locks() {
   local targets
   targets=($(resolve_targets "${targets_args[@]}"))
 
+  preclone_sources_for_targets "${targets[@]}" "${stream}" || return 1
+
   declare -A projects_seen
 
   for img in "${targets[@]}"; do
@@ -1558,13 +1831,10 @@ sync_locks() {
     if [[ -z "${project}" ]]; then
       if [[ "${img}" == "base" ]] && [[ -z "${projects_seen[base]:-}" ]]; then
         projects_seen["base"]=1
-        ensure_sources_for_stream "base" "${stream}"
         refresh_project_constraints "base" "${stream}" || return 1
       fi
       continue
     fi
-
-    ensure_sources_for_stream "${img}" "${stream}"
 
     if [[ -z "${projects_seen[$project]:-}" ]]; then
       projects_seen["${project}"]=1
@@ -1618,7 +1888,9 @@ fi
 
 case "${ACTION}" in
   build)
-    for img in $(resolve_targets "${TARGETS[@]}"); do
+    _build_targets=($(resolve_targets "${TARGETS[@]}"))
+    preclone_sources_for_targets "${_build_targets[@]}" "${STREAM}"
+    for img in "${_build_targets[@]}"; do
       build_image "${img}"
     done
     ;;
@@ -1635,6 +1907,10 @@ case "${ACTION}" in
       _bp_logdir=$(mktemp -d)
     fi
 
+    # Pre-clone unique sources in parallel before building. Fail fast on
+    # clone errors instead of waiting until after the base image.
+    preclone_sources_for_targets "${_bp_targets[@]}" "${STREAM}"
+
     # Build base first (all service images depend on it)
     for _bp_img in "${_bp_targets[@]}"; do
       [[ -n "$(project_name "${_bp_img}")" ]] && continue
@@ -1642,12 +1918,6 @@ case "${ACTION}" in
       build_image "${_bp_img}" 2>&1 |
         sed -u "s|^|[${_bp_img}] |" |
         tee "${_bp_logdir}/${_bp_img//\//_}.log"
-    done
-
-    # Pre-clone sources so parallel builds don't race on the same directories
-    for _bp_img in "${_bp_targets[@]}"; do
-      [[ -z "$(project_name "${_bp_img}")" ]] && continue
-      ensure_sources_for_stream "${_bp_img}" "${STREAM}"
     done
 
     # Build service images in parallel (max PARALLEL at a time)
@@ -1754,6 +2024,9 @@ case "${ACTION}" in
     sync_locks "${TARGETS[@]}" "${STREAM}"
     ;;
   update-sources)
+    # PBR version calculation needs tags and history. Image builds stay
+    # shallow; this command is the lock-refresh path, not the hot path.
+    FULL_CLONE=1
     if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
       echo "=== Skipping hash update (SKIP_HASH_UPDATE is set) ==="
       ensure_sources_for_targets "${TARGETS[@]}" "${STREAM}"
@@ -1903,9 +2176,10 @@ case "${ACTION}" in
     echo "  CONSTRAINTS_FILE  Constraints/lockfile base name (default: requirements.lock)"
     echo "  BUILD_CONSTRAINTS_FILE  Build-requirements lockfile base name (default: buildrequirements.lock)"
     echo "  DEFAULT_STREAM    Default stream for un-streamed symlinks (default: master)"
-    echo "  PARALLEL          Max concurrent builds for build-parallel (default: nproc)"
+    echo "  PARALLEL          Max concurrent builds and source clones (default: nproc)"
     echo "  BUILD_LOGS_DIR    Persist build-parallel logs to this directory"
     echo "  SKIP_HASH_UPDATE  Skip updating pinned hashes; regenerate locks only"
+    echo "  FULL_CLONE        Fetch full git history for pin clones (default: shallow)"
     echo "  REQUIREMENTS_SRC  Directory with upper-constraints.txt for sync-locks"
     echo "  PIP_NO_BINARY     Pass PIP_NO_BINARY to container build (e.g., ':all:')"
     echo "  PBR_VERSION_FROM_GIT  Let PBR calculate source versions from Git (default: false)"
