@@ -328,6 +328,56 @@ test_fetches_upper_constraints() {
   assert_grep "pbr==7.0.3" "${uc}"
 }
 
+test_upper_constraints_fetch_uses_resolved_sha() {
+  _run_build STREAM=master
+
+  assert_grep "Fetching upper-constraints.txt.master from ${UPSTREAM_REQ} at ${REQ_HASH_NEW}" \
+    "${TEST_DIR}/build.log"
+  assert "requirements.git was not cloned into src" \
+    test ! -d "${TEST_DIR}/containers/test-svc/src/upper-constraints"
+}
+
+test_pin_already_at_tip_keeps_hash() {
+  cat > "${TEST_DIR}/containers/test-svc/sources.txt" <<EOF
+master upper-constraints ${UPSTREAM_REQ} master ${REQ_HASH_NEW}
+master test-svc ${UPSTREAM_SVC} master ${SVC_HASH_NEW}
+EOF
+
+  _run_build STREAM=master
+
+  local src="${TEST_DIR}/containers/test-svc/sources.txt"
+  assert_field "${src}" master upper-constraints 5 "${REQ_HASH_NEW}"
+  assert_field "${src}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_grep "Cloning ${UPSTREAM_SVC} at ${SVC_HASH_NEW}" "${TEST_DIR}/build.log"
+}
+
+test_six_field_version_recalculated_when_hash_unchanged() {
+  cat > "${TEST_DIR}/containers/test-svc/sources.txt" <<EOF
+master upper-constraints ${UPSTREAM_REQ} master ${REQ_HASH_NEW} -
+master test-svc ${UPSTREAM_SVC} master ${SVC_HASH_NEW} 1.2.3.dev4
+EOF
+
+  _run_build STREAM=master
+
+  local src="${TEST_DIR}/containers/test-svc/sources.txt"
+  assert_field "${src}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_field "${src}" master test-svc 6 "1.0.1.dev1"
+  assert_field "${src}" master upper-constraints 6 "-"
+}
+
+test_six_field_version_recalculated_when_hash_moves() {
+  cat > "${TEST_DIR}/containers/test-svc/sources.txt" <<EOF
+master upper-constraints ${UPSTREAM_REQ} master ${REQ_HASH_OLD} -
+master test-svc ${UPSTREAM_SVC} master ${SVC_HASH_OLD} 1.2.3.dev4
+EOF
+
+  _run_build STREAM=master
+
+  local src="${TEST_DIR}/containers/test-svc/sources.txt"
+  assert_field "${src}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_field "${src}" master test-svc 6 "1.0.1.dev1"
+}
+
 test_generates_rpms_in_yaml() {
   _run_build STREAM=master
 
@@ -918,6 +968,10 @@ TESTS=(
   test_skip_hash_update_records_pinned_version
   test_version_failure_leaves_sources_unchanged
   test_fetches_upper_constraints
+  test_upper_constraints_fetch_uses_resolved_sha
+  test_pin_already_at_tip_keeps_hash
+  test_six_field_version_recalculated_when_hash_unchanged
+  test_six_field_version_recalculated_when_hash_moves
   test_generates_rpms_in_yaml
   test_generates_requirements_lock
   test_generates_buildrequirements_lock
