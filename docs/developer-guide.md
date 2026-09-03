@@ -411,11 +411,17 @@ validation, builds, publication, result generation, and cleanup target that
 host explicitly. The Zuul executor controls Ansible but does not perform those
 mutations.
 
-In this repository the provider defaults to `all`, so every maintained image
-is built from its exact `sources.txt` pins. A child job can set `s2i_ci_images`
-to an explicit list of image targets; the provider resolves the selection
-through `build.sh` and publishes only that set. The caller is responsible
-for including `base` in the list if service images depend on it.
+The job default remains `s2i_ci_images: all`. This repository's
+github-check pipeline overrides that to `changes`, so only images
+touched by the PR are rebuilt. Operator child jobs must keep an explicit
+image list; OpenDev speculative jobs use `auto`. Do not set `changes` on
+jobs whose triggering repo is not s2i-openstack-containers — the git diff
+reads this checkout, not the operator or OpenDev change.
+
+The provider resolves the selection through `build.sh` and publishes only
+that set. The caller is responsible for including `base` in explicit lists
+if service images depend on it; `changes` and `auto` add `base`
+automatically in the shared playbook.
 
 To compose the provider in an operator repository, define
 `<service>-s2i-content-provider` that parents this job, add the
@@ -429,7 +435,10 @@ is described in [Speculative builds](#speculative-builds-zuul-integration).
 ### This repository's github-check pipeline
 
 This repo's own check pipeline is not the operator graph. Molecule runs
-on its own. The image jobs are:
+on its own. The content provider sets ``s2i_ci_images: changes`` so a
+service-only PR rebuilds that service (plus ``base``) instead of every
+image. Job YAML, playbooks, ``build.sh``, and ``containers/base/`` still
+force a full rebuild. The image jobs are:
 
 ```
 s2i-openstack-container-content-provider
@@ -649,6 +658,48 @@ When a patch is submitted against an upstream OpenStack project (e.g.,
 `openstack/tempest`), the CI pipeline can automatically build fresh
 container images incorporating that patch. This is called a **speculative
 build**.
+
+### Changed-path selection (github-check)
+
+The content provider job accepts `s2i_ci_images: changes` on this
+repository's github-check pipeline. It inspects the files modified in the
+Zuul merge checkout and rebuilds only the affected image targets:
+
+```yaml
+vars:
+  s2i_ci_images: changes
+```
+
+Under the hood, changed-path selection:
+
+1. Runs `git diff --name-only HEAD^1 HEAD` in the s2i checkout.
+2. Calls `build.sh images-from-changes` with those paths as arguments.
+3. Replaces `s2i_ci_images` with the de-duplicated list of targets, or
+   `all` when a global path requires a full rebuild.
+
+The provider publishes only the selected set.
+`s2i_content_provider_os_custom_container_images` contains those images'
+OpenStackVersion keys. Images that were not rebuilt are **not** filled
+from `quay.io/openstack-s2i-containers` `master-latest`. Dependent jobs
+use `cifmw_set_containers_preserve_unlisted: true`, so unlisted keys
+keep the operator/payload OpenStackVersion defaults. Keys in
+`s2i_ci_skip_os_custom_images` stay on payload defaults as well.
+
+Global paths that force `all` include `build.sh`, `tox.ini`,
+`containers/base/`, `containers/sources.txt`,
+`containers/image-mappings.yaml`, `playbooks/`, `zuul.d/`, `tests/`,
+and `scripts/`. A PR that mixes those with a service path also rebuilds
+everything. Changes under `containers/<project>/` rebuild that project's
+images; changes under `containers/<project>/<image>/` rebuild only that
+image when the path maps to a single target. Docs-only paths are ignored
+when mixed with a service change.
+
+You can test changed-path selection locally:
+
+```bash
+./build.sh images-from-changes containers/watcher/watcher/Containerfile
+printf '%s\n' containers/nova/sources.txt | ./build.sh images-from-changes
+```
 
 ### Auto-detection
 

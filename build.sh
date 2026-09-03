@@ -700,6 +700,115 @@ auto_detect() {
   printf '%s\n' "${matches[@]}"
 }
 
+# Return image targets affected by changed repository paths.
+# Prints "all" when a global path forces a full rebuild; otherwise one
+# image target per line in discover_images order. With no arguments, paths
+# are read from stdin (one relative path per line).
+# Used by github-check to build only images touched by a PR.
+images_from_changes() {
+  local -a paths=()
+  if [[ ${#@} -eq 0 ]]; then
+    while IFS= read -r line; do
+      [[ -n "${line}" ]] && paths+=("${line}")
+    done
+  else
+    paths=("$@")
+  fi
+
+  if [[ ${#paths[@]} -eq 0 ]]; then
+    echo "all"
+    return 0
+  fi
+
+  local all_images
+  all_images=($(discover_images))
+  declare -A seen=()
+  local force_all=0
+  local path rel project img best matched=0
+
+  for path in "${paths[@]}"; do
+    path="${path#./}"
+    case "${path}" in
+      build.sh | tox.ini | containers/sources.txt | containers/image-mappings.yaml)
+        force_all=1
+        break
+        ;;
+      containers/base | containers/base/*)
+        force_all=1
+        break
+        ;;
+      playbooks/* | zuul.d/* | tests/* | scripts/*)
+        force_all=1
+        break
+        ;;
+      *.md | docs/* | LICENSE* | .github/*)
+        continue
+        ;;
+    esac
+
+    case "${path}" in
+      containers/*) ;;
+      *)
+        force_all=1
+        break
+        ;;
+    esac
+
+    rel="${path#containers/}"
+    [[ -z "${rel}" ]] && continue
+
+    matched=0
+    best=""
+    for img in "${all_images[@]}"; do
+      [[ "${img}" == "base" ]] && continue
+      if [[ "${rel}" == "${img}" || "${rel}" == "${img}/"* ]]; then
+        if [[ ${#img} -gt ${#best} ]]; then
+          best="${img}"
+        fi
+      fi
+    done
+
+    if [[ -n "${best}" ]]; then
+      seen["${best}"]=1
+      continue
+    fi
+
+    project="${rel%%/*}"
+    [[ "${project}" == "base" ]] && {
+      force_all=1
+      break
+    }
+    for img in "${all_images[@]}"; do
+      [[ "${img}" == "base" ]] && continue
+      if [[ "${img}" == "${project}" || "${img}" == "${project}/"* ]]; then
+        seen["${img}"]=1
+        matched=1
+      fi
+    done
+    if [[ ${matched} -eq 0 ]]; then
+      force_all=1
+      break
+    fi
+  done
+
+  if [[ ${force_all} -eq 1 ]]; then
+    echo "all"
+    return 0
+  fi
+
+  if [[ ${#seen[@]} -eq 0 ]]; then
+    echo "all"
+    return 0
+  fi
+
+  for img in "${all_images[@]}"; do
+    if [[ -n "${seen[${img}]:-}" ]]; then
+      echo "${img}"
+    fi
+  done
+  return 0
+}
+
 # List source dependencies for an image target.
 # Outputs pipe-delimited records: name|canonical_project|url|dest_dir
 # Used by Ansible playbooks to stage Zuul sources without re-parsing
@@ -1505,7 +1614,11 @@ sync_locks() {
 # Main
 ACTION="${1:-}"
 shift || true
-if [[ $# -gt 0 ]]; then
+# Remember whether the caller passed targets. images-from-changes with no
+# args must read stdin; defaulting TARGETS to "all" would treat that
+# literal string as a changed path and force a full rebuild.
+_HAS_TARGETS=$#
+if [[ ${_HAS_TARGETS} -gt 0 ]]; then
   TARGETS=("$@")
 else
   TARGETS=("all")
@@ -1638,6 +1751,13 @@ case "${ACTION}" in
     fi
     auto_detect "${TARGETS[0]}" "${TARGETS[1]:-}"
     ;;
+  images-from-changes)
+    if [[ ${_HAS_TARGETS} -eq 0 ]]; then
+      images_from_changes
+    else
+      images_from_changes "${TARGETS[@]}"
+    fi
+    ;;
   list-sources)
     if [[ ${#TARGETS[@]} -eq 0 || "${TARGETS[0]}" == "all" ]]; then
       echo "Usage: STREAM=<name> $0 list-sources <image-target>" >&2
@@ -1755,7 +1875,7 @@ case "${ACTION}" in
     list_images
     ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|sync-locks|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|images-from-changes|list-sources|sync-locks|update-sources|update-lockfiles|install-deps|list} [target ...]"
     echo ""
     echo "Commands:"
     echo "  build              Build one or more images sequentially"
@@ -1770,6 +1890,9 @@ case "${ACTION}" in
     echo "                     shorthand into the canonical project/image list"
     echo "  auto-detect        Given an upstream project path (e.g. openstack/nova), print"
     echo "                     the container images whose sources.txt references that project"
+    echo "  images-from-changes"
+    echo "                     Given changed repo paths (args or stdin), print affected"
+    echo "                     image targets or 'all' when a global rebuild is required"
     echo "  list-sources       Print pipe-delimited source records for a target:"
     echo "                     name|canonical_project|url|dest_dir"
     echo "  sync-locks         Relock current src/ trees against current constraints"
