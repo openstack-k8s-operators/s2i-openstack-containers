@@ -274,9 +274,131 @@ test_list_sources_nonexistent_stream_returns_nothing() {
   assert "empty output" test -z "${output}"
 }
 
+# ── images-from-changes tests ────────────────────────────────────────────
+
+test_images_from_changes_single_image() {
+  local output
+  output="$(_run images-from-changes \
+    containers/alpha/alpha-one/Containerfile 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns exactly 1 image" test "${count}" -eq 1
+  assert "returns alpha/alpha-one" echo "${output}" | grep -qF "alpha/alpha-one"
+}
+
+test_images_from_changes_project_level() {
+  local output
+  output="$(_run images-from-changes \
+    containers/alpha/sources.txt 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns 2 images" test "${count}" -eq 2
+  assert_grep "alpha/alpha-one" "${TEST_DIR}/build.log"
+  assert_grep "alpha/alpha-two" "${TEST_DIR}/build.log"
+}
+
+test_images_from_changes_image_level_sources() {
+  local output
+  output="$(_run images-from-changes \
+    containers/beta/beta-sub/sources.txt 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns exactly 1 image" test "${count}" -eq 1
+  assert_grep "beta/beta-sub" "${TEST_DIR}/build.log"
+  assert_no_grep "beta/beta-main" "${TEST_DIR}/build.log"
+}
+
+test_images_from_changes_build_sh_returns_all() {
+  local output
+  output="$(_run images-from-changes build.sh 2>/dev/null)"
+  assert "returns all" test "${output}" = "all"
+}
+
+test_images_from_changes_union() {
+  local output
+  output="$(_run images-from-changes \
+    containers/alpha/alpha-one/Containerfile \
+    containers/beta/beta-main/Containerfile 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns 2 images" test "${count}" -eq 2
+  assert_grep "alpha/alpha-one" "${TEST_DIR}/build.log"
+  assert_grep "beta/beta-main" "${TEST_DIR}/build.log"
+}
+
+test_images_from_changes_unmapped_paths_fallback_to_all() {
+  local output
+  output="$(_run images-from-changes zuul.d/jobs.yaml tests/foo.sh 2>/dev/null)"
+  assert "returns all" test "${output}" = "all"
+}
+
+test_images_from_changes_mixed_global_and_service_returns_all() {
+  local output
+  output="$(_run images-from-changes \
+    containers/alpha/alpha-one/Containerfile \
+    zuul.d/jobs.yaml 2>/dev/null)"
+  assert "returns all" test "${output}" = "all"
+}
+
+test_images_from_changes_docs_mixed_with_service_stays_selective() {
+  local output
+  output="$(_run images-from-changes \
+    README.md \
+    containers/alpha/alpha-one/Containerfile 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns exactly 1 image" test "${count}" -eq 1
+  assert_grep "alpha/alpha-one" "${TEST_DIR}/build.log"
+}
+
+test_images_from_changes_image_mappings_returns_all() {
+  local output
+  output="$(_run images-from-changes \
+    containers/image-mappings.yaml 2>/dev/null)"
+  assert "returns all" test "${output}" = "all"
+}
+
+test_images_from_changes_empty_stdin_returns_all() {
+  local output
+  output="$(_run images-from-changes </dev/null 2>/dev/null)"
+  assert "returns all" test "${output}" = "all"
+}
+
+test_images_from_changes_stdin_selects_image() {
+  # Regression: no argv used to default TARGETS to "all", which
+  # images-from-changes treated as a global path and ignored stdin.
+  local output
+  output="$(printf '%s\n' containers/alpha/alpha-one/Containerfile |
+    _run images-from-changes 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local count
+  count="$(echo "${output}" | wc -l | tr -d ' ')"
+  assert "returns exactly 1 image" test "${count}" -eq 1
+  assert "does not return all" test "${output}" != "all"
+  assert_grep "alpha/alpha-one" "${TEST_DIR}/build.log"
+}
+
+test_images_from_changes_subset_exits_zero() {
+  local rc=0
+  _run images-from-changes \
+    containers/alpha/alpha-one/Containerfile >/dev/null || rc=$?
+  assert "zero exit for a subset of images" test "${rc}" -eq 0
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────
 
-echo "=== auto-detect and list-sources tests ==="
+echo "=== auto-detect, list-sources, and images-from-changes tests ==="
 echo ""
 
 TESTS=(
@@ -294,6 +416,18 @@ TESTS=(
   test_list_sources_project_level_includes_image_level_sources
   test_list_sources_project_level_deduplicates
   test_list_sources_nonexistent_stream_returns_nothing
+  test_images_from_changes_single_image
+  test_images_from_changes_project_level
+  test_images_from_changes_image_level_sources
+  test_images_from_changes_build_sh_returns_all
+  test_images_from_changes_union
+  test_images_from_changes_unmapped_paths_fallback_to_all
+  test_images_from_changes_mixed_global_and_service_returns_all
+  test_images_from_changes_docs_mixed_with_service_stays_selective
+  test_images_from_changes_image_mappings_returns_all
+  test_images_from_changes_empty_stdin_returns_all
+  test_images_from_changes_stdin_selects_image
+  test_images_from_changes_subset_exits_zero
 )
 
 for t in "${TESTS[@]}"; do

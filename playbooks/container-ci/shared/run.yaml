@@ -60,6 +60,10 @@
       when: s2i_ci_images == 'auto'
       ansible.builtin.include_tasks: resolve-auto-images.yaml
 
+    - name: Resolve changed-path images when s2i_ci_images is 'changes'
+      when: s2i_ci_images == 'changes'
+      ansible.builtin.include_tasks: resolve-changed-images.yaml
+
     - name: Validate selective provider inputs
       ansible.builtin.assert:
         that:
