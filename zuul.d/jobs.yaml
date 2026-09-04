@@ -38,76 +38,95 @@
       s2i_ci_content_provider: true
 
 - job:
-    name: s2i-speculative-deploy-test-base
+    name: s2i-test-base
     abstract: true
-    parent: podified-multinode-edpm-deployment-crc-test-operator
+    parent: podified-multinode-edpm-deployment-crc-2comp
     description: |
-      Abstract base for validating speculatively-built s2i service images
-      that are enabled in the standard OpenStack deployment (e.g. glance,
-      nova).  Deploys OpenStack via the parent job.  s2i-built images from
-      the content provider are applied to OpenStackVersion during
-      edpm_prepare (via ci-framework set_containers) before the control plane
-      is deployed.  Tempest tests scoped to the target service run via
-      test-operator.
+      Validate speculatively-built s2i images against a live
+      OpenStack deployment. s2i-built images from the
+      content provider are applied to OpenStackVersion during
+      edpm_prepare via ci-framework set_containers before the control
+      plane is deployed.
 
-      Child jobs must set s2i_tempest_include_list to scope the tests.
-
-      Services with custom deployments (e.g. watcher, which needs 2+
-      computes and operator-specific scenarios) should parent their own
-      operator base job and set content_provider_registry_ip to the s2i
-      buildset registry host.  See s2i-speculative-deploy-test-watcher in
-      watcher-operator for an example.
-    required-projects:
+      Scalar OpenStackVersion fields come from the s2i image map.
+      Custom variables are provided to easily handle the special
+      cases (cinder-volume, manila-share).
+    required-projects: &s2i_test_base_requiredprojects
       - name: openstack-k8s-operators/s2i-openstack-containers
         override-checkout: main
-    vars:
+    vars: &s2i_test_base_vars
       content_provider_registry_ip: "{{ s2i_content_provider_registry_ip }}"
+      # Operator CP owns content_provider_registry_ip (catalog + CRC
+      # insecure list). Append the s2i registry so CRC can pull both.
+      # If you use just a single content set all from s2i, then override
+      # content_provider_registry_ip with the value of
+      # s2i_content_provider_registry_ip. Otherwise keep it as it is
+      # if your job depends on two content provider jobs, one for
+      # operators (which sets content_provider_registry_ip) and the other
+      # for s2i.
+      cifmw_crc_additional_insecure_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
+      cifmw_crc_additional_allowed_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
       cifmw_set_containers_preserve_unlisted: true
-      # Empty by default so operator consumers inject every mapped key.
-      # s2i-openstack-deploy-validation overrides this with unready keys.
+      # List of images to be skipped (for special cases).
       s2i_ci_skip_os_custom_images: []
+      # Combine the scalar OpenStackVersion fields from the s2i provider,
+      # plus the additional mapping (special cases like cinder-volume
+      # and manila-share)
+      s2i_cinder_volume_backends: []
+      s2i_manila_share_backends: []
       cifmw_set_containers_images: >-
         {{
           (
             s2i_content_provider_os_custom_container_images | dict2items |
             rejectattr('key', 'in', s2i_ci_skip_os_custom_images) | list |
             json_query('[].{name: key, full_registry: value}')
-          ) + [{
-            'name': 'cinderVolumeImages',
-            'full_registry': (
-              s2i_content_provider_registry_ip ~ ':5001/' ~
-              s2i_ci_content.namespace ~
-              '/openstack-cinder-volume:' ~
-              s2i_ci_content.tag
-            ),
-            'backends': ['volume1']
-          }] + [{
-            'name': 'manilaShareImages',
-            'full_registry': (
-              s2i_content_provider_registry_ip ~ ':5001/' ~
-              s2i_ci_content.namespace ~
-              '/openstack-manila-share:' ~
-              s2i_ci_content.tag
-            ),
-            'backends': ['share1']
-          }]
+          ) + (
+            [{
+              'name': 'cinderVolumeImages',
+              'full_registry': (
+                s2i_content_provider_registry_ip ~ ':5001/' ~
+                s2i_ci_content.namespace ~
+                '/openstack-cinder-volume:' ~
+                s2i_ci_content.tag
+              ),
+              'backends': s2i_cinder_volume_backends
+            }] if s2i_cinder_volume_backends | default([]) else []
+          ) + (
+            [{
+              'name': 'manilaShareImages',
+              'full_registry': (
+                s2i_content_provider_registry_ip ~ ':5001/' ~
+                s2i_ci_content.namespace ~
+                '/openstack-manila-share:' ~
+                s2i_ci_content.tag
+              ),
+              'backends': s2i_manila_share_backends
+            }] if s2i_manila_share_backends | default([]) else []
+          )
         }}
-      cifmw_test_operator_tempest_image: >-
-        {{
-          s2i_content_provider_registry_ip ~ ':5001/' ~
-          s2i_ci_content.namespace ~ '/openstack-tempest'
-        }}
-      cifmw_test_operator_tempest_image_tag: "{{ s2i_ci_content.tag }}"
-      cifmw_test_operator_stages:
-        - name: tempest
-          type: tempest
-      cifmw_test_operator_tempest_include_list: |
-        {{ s2i_tempest_include_list }}
-      s2i_tempest_include_list: ""
+
+- job:
+    name: s2i-test-base-ceph
+    abstract: true
+    parent: podified-multinode-hci-deployment-crc-1comp-backends
+    description: |
+      Validate speculatively-built s2i images against a live
+      HCI OpenStack deployment with Ceph. s2i-built images from the
+      content provider are applied to OpenStackVersion during
+      edpm_prepare via ci-framework set_containers before the control
+      plane is deployed.
+
+      Scalar OpenStackVersion fields come from the s2i image map.
+      It is possible to extend it with additional mapping,
+      for example for cinder-volume and manila-share.
+    required-projects: *s2i_test_base_requiredprojects
+    vars: *s2i_test_base_vars
 
 - job:
     name: s2i-openstack-deploy-validation
-    parent: s2i-speculative-deploy-test-base
+    parent: s2i-test-base-ceph
     description: |
       Full deployment validation for the s2i-openstack-containers repo.
       Deploys OpenStack with mapped s2i-built images from the content
@@ -123,9 +142,13 @@
       Depends on the content provider (paused registry and artifacts)
       and on ``s2i-openstack-container-consumer-smoke`` so a broken
       publish/mapping contract skips this CRC/EDPM job.
-    required-projects:
-      - name: openstack-k8s-operators/s2i-openstack-containers
     vars:
+      s2i_cinder_volume_backends: ['volume1']
+      s2i_manila_share_backends: ['share1']
+      # Override content_provider_registry_ip because there is a single
+      # content provider job (the s2i one), and not the operator one,
+      # which would set this value.
+      content_provider_registry_ip: "{{ s2i_content_provider_registry_ip }}"
       # Omit unready s2i images so preserve_unlisted keeps payload
       # defaults. Do not pin quay master-latest in image-mappings.yaml.
       s2i_ci_skip_os_custom_images:
@@ -154,7 +177,13 @@
                     enabled: true
               target:
                 kind: OpenStackControlPlane
-      s2i_tempest_include_list: |
+      cifmw_test_operator_tempest_image: >-
+        {{
+          s2i_content_provider_registry_ip ~ ':5001/' ~
+          s2i_ci_content.namespace ~ '/openstack-tempest'
+        }}
+      cifmw_test_operator_tempest_image_tag: "{{ s2i_ci_content.tag }}"
+      cifmw_test_operator_tempest_include_list: |
         tempest.api.compute.servers.test_create_server.ServersTestJSON.test_list_servers
         tempest.api.compute.servers.test_server_actions.ServerActionsTestJSON.test_reboot_server_hard
         tempest.api.identity.v3.test_tokens.TokensV3Test.test_create_token
