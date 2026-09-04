@@ -16,3 +16,6 @@ pytest-reportportal
 pytest-rerunfailures
 pytest-subtests
 pytest-timeout
+# Pin below versions tobiko still needs.
+urllib3<2.0
+testtools<2.8

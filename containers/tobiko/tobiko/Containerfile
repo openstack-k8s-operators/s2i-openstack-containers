@@ -80,24 +80,6 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
-# TODO: remove the wa when OSPRH-36305 is solved.
-# (urllib3 2.x, testtools 2.8+, conftest git metadata optional).
-COPY tobiko/scripts/tobiko_urllib3_compat.py \
-     tobiko/scripts/tobiko_testtools_compat.py \
-     tobiko/scripts/tobiko_skip_git_metadata.py \
-     tobiko/scripts/tobiko_urllib3_compat.pth /tmp/
-RUN python3 -c "\
-import importlib.util, os, shutil; \
-spec = importlib.util.find_spec('tobiko'); \
-assert spec and spec.origin, 'tobiko is not installed'; \
-sp = os.path.dirname(os.path.dirname(os.path.abspath(spec.origin))); \
-shutil.copy('/tmp/tobiko_urllib3_compat.py', sp); \
-shutil.copy('/tmp/tobiko_testtools_compat.py', sp); \
-shutil.copy('/tmp/tobiko_skip_git_metadata.py', sp); \
-shutil.copy('/tmp/tobiko_urllib3_compat.pth', sp)" && \
-    rm -f /tmp/tobiko_urllib3_compat.py /tmp/tobiko_testtools_compat.py \
-          /tmp/tobiko_skip_git_metadata.py /tmp/tobiko_urllib3_compat.pth
-
 # Heat templates / Ansible playbooks are not always packed into the wheel.
 COPY --from=build /src/tobiko/tobiko /tmp/tobiko-src
 COPY tobiko/scripts/install_package_data.py /tmp/install_package_data.py
@@ -115,6 +97,17 @@ RUN tar -zx -C /usr/local/bin -f /tmp/openshift-client-linux.tar.gz oc kubectl &
 # in the wheel (setup.cfg packages only tobiko).
 COPY --from=build /src/tobiko/tools/run_tests.py \
                    /src/tobiko/tools/common.py /usr/share/tobiko/tools/
+# TODO: remove when tobiko/tests/conftest.py does not require git metadata.
+COPY tobiko/scripts/tobiko_skip_git_metadata.py \
+     tobiko/scripts/pytest_wrapper.py \
+     tobiko/scripts/sitecustomize.py /usr/share/tobiko/tools/
+RUN python3 -c "\
+import importlib.util, os, shutil; \
+spec = importlib.util.find_spec('tobiko'); \
+assert spec and spec.origin, 'tobiko is not installed'; \
+sp = os.path.dirname(os.path.dirname(os.path.abspath(spec.origin))); \
+shutil.copy('/usr/share/tobiko/tools/sitecustomize.py', os.path.join(sp, 'sitecustomize.py'))" && \
+    install -m 755 /usr/share/tobiko/tools/pytest_wrapper.py /usr/bin/pytest
 COPY --from=build /src/tobiko/tox.ini /usr/share/tobiko/tox.ini
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 /usr/share/tobiko/tools/run_tests.py "$@"' \
         > /usr/bin/run_tests.py && chmod +x /usr/bin/run_tests.py && \

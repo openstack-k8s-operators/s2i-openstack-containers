@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Copy non-Python package data (Heat templates, playbooks) onto the install.
 
-Do not import tobiko: that pulls urllib3 internals and fails with urllib3 2.x
-(poolmanager._key_fields was removed).
 """
 import importlib.util
 import os
