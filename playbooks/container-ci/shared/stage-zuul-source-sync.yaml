@@ -1,8 +1,8 @@
 ---
 # Sync a single Zuul source checkout into its container build context.
 #
-# s2i_ci_src is a list: [name, canonical_project, url, dest_dir]
-# from `build.sh list-sources` output.
+# s2i_ci_src is a list from `build.sh list-sources` output:
+#   [name, canonical_project, url, dest_dir, pinned_hash]
 
 - name: "Resolve Zuul checkout path for {{ s2i_ci_src[0] }}"
   ansible.builtin.set_fact:
@@ -36,6 +36,23 @@
           - --exclude=__pycache__
           - "{{ s2i_ci_sync_from }}/"
           - "{{ s2i_ci_sync_to }}/"
+      changed_when: true
+
+    - name: "Checkout sources.txt pin for {{ s2i_ci_src[0] }}"
+      when:
+        - s2i_ci_prefer_shas | default(false) | bool
+        - s2i_ci_src[1] not in (s2i_ci_speculative_projects | default([]))
+        - (s2i_ci_zuul_name_map[s2i_ci_src[1]] | default(''))
+            not in (s2i_ci_speculative_projects | default([]))
+        - s2i_ci_src | length > 4
+        - s2i_ci_src[4] | length > 0
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ s2i_ci_sync_to }}"
+          - checkout
+          - "{{ s2i_ci_src[4] }}"
       changed_when: true
 
     - name: "Log staged source for {{ s2i_ci_src[0] }}"

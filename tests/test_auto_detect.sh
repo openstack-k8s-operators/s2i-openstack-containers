@@ -225,7 +225,7 @@ test_list_sources_image_level_returns_pipe_delimited() {
   while IFS= read -r line; do
     local field_count
     field_count="$(echo "${line}" | awk -F'|' '{print NF}')"
-    assert "4 pipe-delimited fields in: ${line}" test "${field_count}" -eq 4
+    assert "5 pipe-delimited fields in: ${line}" test "${field_count}" -eq 5
   done <<< "${output}"
 }
 
@@ -274,6 +274,93 @@ test_list_sources_nonexistent_stream_returns_nothing() {
   assert "empty output" test -z "${output}"
 }
 
+test_list_required_projects_includes_opendev_repo() {
+  local output
+  output="$(_run list-required-projects master 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  assert_grep "opendev.org/openstack/requirements" "${TEST_DIR}/build.log"
+  assert_grep "opendev.org/openstack/beta-svc" "${TEST_DIR}/build.log"
+}
+
+test_list_required_projects_is_sorted_unique() {
+  local output
+  output="$(_run list-required-projects master 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  local sorted
+  sorted="$(echo "${output}" | sort -u)"
+  assert "sorted unique output" test "${output}" = "${sorted}"
+}
+
+# ── create-zuul-required-projects.sh tests ───────────────────────────────
+
+_run_generator() {
+  S2I_REPO_ROOT="${TEST_DIR}" STREAM=master PARALLEL=1 \
+    "${SCRIPT_DIR}/scripts/create-zuul-required-projects.sh" "$@"
+}
+
+test_generator_requires_output() {
+  local rc=0
+  local stderr
+  stderr="$(_run_generator 2>&1 >/dev/null)" || rc=$?
+  echo "${stderr}" > "${TEST_DIR}/build.log"
+
+  assert "non-zero exit" test "${rc}" -ne 0
+  assert_grep "output is required" "${TEST_DIR}/build.log"
+}
+
+test_generator_writes_opendev_required_projects() {
+  echo "master extra-gh https://github.com/example/foo.git master abcdef" \
+    >> "${TEST_DIR}/containers/alpha/sources.txt"
+
+  local out="${TEST_DIR}/s2i-source-required-projects.yaml"
+  _run_generator --output "${out}" --stream master \
+    > "${TEST_DIR}/build.log"
+
+  assert "output file exists" test -f "${out}"
+  assert_grep "name: s2i-openstack-zuul-sources-base" "${out}"
+  assert_grep "opendev.org/openstack/requirements" "${out}"
+  assert_grep "opendev.org/openstack/beta-svc" "${out}"
+  assert_grep "github.com/openstack-k8s-operators/s2i-openstack-containers" "${out}"
+  assert_no_grep "github.com/example/foo" "${out}"
+}
+
+test_generator_unknown_stream_fails() {
+  local rc=0
+  local stderr
+  stderr="$(_run_generator --output "${TEST_DIR}/out.yaml" --stream missing 2>&1)" || rc=$?
+  echo "${stderr}" > "${TEST_DIR}/build.log"
+
+  assert "non-zero exit" test "${rc}" -ne 0
+  assert_grep "no required projects found" "${TEST_DIR}/build.log"
+}
+
+test_generator_allow_from_keeps_tenant_projects_only() {
+  cat > "${TEST_DIR}/projects.yaml" <<'EOF'
+- job:
+    name: unrelated-job
+    required-projects:
+      - name: opendev.org/openstack/requirements
+- project:
+    name: opendev.org/openstack/beta-svc
+- project:
+    name: '^github.com/example/.*'
+EOF
+
+  local out="${TEST_DIR}/s2i-source-required-projects.yaml"
+  local stderr
+  stderr="$(_run_generator --output "${out}" --allow-from "${TEST_DIR}/projects.yaml" 2>&1)"
+  echo "${stderr}" > "${TEST_DIR}/build.log"
+
+  assert_grep "name: s2i-openstack-zuul-sources-base" "${out}"
+  assert_grep "opendev.org/openstack/beta-svc" "${out}"
+  assert_grep "github.com/openstack-k8s-operators/s2i-openstack-containers" "${out}"
+  assert_no_grep "opendev.org/openstack/requirements" "${out}"
+  assert_no_grep "opendev.org/openstack/alpha-svc" "${out}"
+  assert_grep "Skipped" "${TEST_DIR}/build.log"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────
 
 echo "=== auto-detect and list-sources tests ==="
@@ -294,6 +381,12 @@ TESTS=(
   test_list_sources_project_level_includes_image_level_sources
   test_list_sources_project_level_deduplicates
   test_list_sources_nonexistent_stream_returns_nothing
+  test_list_required_projects_includes_opendev_repo
+  test_list_required_projects_is_sorted_unique
+  test_generator_requires_output
+  test_generator_writes_opendev_required_projects
+  test_generator_unknown_stream_fails
+  test_generator_allow_from_keeps_tenant_projects_only
 )
 
 for t in "${TESTS[@]}"; do
