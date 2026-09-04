@@ -83,6 +83,12 @@ _setup_fixture() {
     fi
   done
 
+  for project in alpha beta; do
+    cat > "${TEST_DIR}/containers/${project}/sources.txt" <<EOF
+master ${project} https://example.invalid/${project}.git master 0123456789abcdef0123456789abcdef01234567 1.2.3
+EOF
+  done
+
   # Fake buildah (bash, not python -- no python dependency)
   mkdir -p "${TEST_DIR}/bin"
   cat > "${TEST_DIR}/bin/buildah" <<'FAKE_BUILDAH'
@@ -90,6 +96,7 @@ _setup_fixture() {
 set -eu
 case "$1" in
   bud)
+    echo "ARGS $*"
     for i in $(seq 2 $#); do
       if [[ "${!i}" == "-f" ]]; then
         next=$((i + 1))
@@ -197,6 +204,13 @@ test_refs_rejects_unknown_target() {
   assert "error message present" test "${has_error}" -ge 1
 }
 
+test_build_passes_source_version_arguments() {
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'PBR_VERSION_FROM_GIT=false' "${TEST_DIR}/build.log"
+  assert_grep 'SOURCE_VERSION_STREAM=master' "${TEST_DIR}/build.log"
+}
+
 test_parallel_build_produces_logs() {
   _run build-parallel "alpha/one,beta/two" >"${TEST_DIR}/build.log" 2>&1 || true
 
@@ -238,6 +252,7 @@ TESTS=(
   test_single_target_has_no_base
   test_resolve_all_returns_machine_readable_targets
   test_refs_rejects_unknown_target
+  test_build_passes_source_version_arguments
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates

@@ -3,10 +3,14 @@ ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
 # --- Build stage: compile wheels from source ---
 FROM ${BASE_IMAGE} AS build
 
+ARG SOURCE_VERSION_STREAM=master
+ARG PBR_VERSION_FROM_GIT=false
+
 ARG SERVICE_SRC=/src/cinder
 
 ARG CONSTRAINTS_FILE=requirements.lock
 COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY sources.txt /source-versions/project.txt
 COPY src/ /src/
 COPY cinder-api/src/ /src/
 
@@ -52,8 +56,19 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
 
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
-        pip3 wheel --no-cache-dir --no-deps \
-          --wheel-dir=/wheels/pkgs "${pkg}"; \
+        source_name=$(basename "${pkg%/}"); \
+        if [ "${PBR_VERSION_FROM_GIT}" = "true" ] || \
+            [ "${pkg#/src/overrides/}" != "${pkg}" ]; then \
+          env -u PBR_VERSION pip3 wheel --no-cache-dir --no-deps \
+            --wheel-dir=/wheels/pkgs "${pkg}"; \
+        else \
+          source_version=$(awk -v stream="${SOURCE_VERSION_STREAM}" \
+            -v name="${source_name}" \
+            '$1 == stream && $2 == name { print $6; exit }' \
+            /source-versions/*.txt); \
+          PBR_VERSION="${source_version}" pip3 wheel --no-cache-dir --no-deps \
+            --no-build-isolation --wheel-dir=/wheels/pkgs "${pkg}"; \
+        fi; \
       fi; \
     done
 

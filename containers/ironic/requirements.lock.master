@@ -29,11 +29,10 @@ jsonpointer==3.1.1
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 jwcrypto==1.5.8
-keystoneauth1==5.16.0
+keystoneauth1==5.17.0
 keystonemiddleware==13.0.1
 kombu==5.6.2
 lark==1.3.1
-legacy-cgi==2.6.4
 mako==1.4.1
 markupsafe==3.0.3
 microversion-parse==2.1.0

@@ -1,3 +1,3 @@
-# stream  name               repo                                                     branch  pinned-hash
-master upper-constraints https://opendev.org/openstack/requirements.git master ddab97be8a4c5fe248db071fde9013ba530d7f72
-master cloudkitty https://opendev.org/openstack/cloudkitty.git master 40323f7428af213ae2775c5d1850014f0c0106c6
+# stream  name               repo                                                     branch  pinned-hash  version
+master upper-constraints https://opendev.org/openstack/requirements.git master c233345294b773d1ed033b7810881fa1752fc73a -
+master cloudkitty https://opendev.org/openstack/cloudkitty.git master 40323f7428af213ae2775c5d1850014f0c0106c6 24.1.0.dev44

@@ -10,19 +10,19 @@ hatchling==1.32.0
 maturin==1.15.0
 packaging==26.3
 pathspec==1.1.1
-pbr==7.1.1
+pbr==7.0.3
 pluggy==1.6.0
 poetry-core==2.4.1
 pycparser==3.0
 pyproject-hooks==1.2.0
 semantic-version==2.10.0
 setuptools-rust==1.13.0
-setuptools-scm==10.2.1
+setuptools-scm==10.2.3
 setuptools-scm==7.1.0
 tomlkit==0.15.1
 trove-classifiers==2026.6.1.19
 typing-extensions==4.16.0
-vcs-versioning==2.3.1
+vcs-versioning==2.3.4
 wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:
