@@ -70,3 +70,4 @@ webob==1.8.11
 wrapt==2.3.0
 
 # The following packages are considered to be unsafe in a requirements file:
+setuptools==84.0.0

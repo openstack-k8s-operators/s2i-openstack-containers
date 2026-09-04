@@ -37,7 +37,6 @@ packages:
   - python3-mod_wsgi
   - python3-openvswitch3.5
   - python3-pip
-  - python3-setuptools
   - python3-unbound
   - radvd
   - rust

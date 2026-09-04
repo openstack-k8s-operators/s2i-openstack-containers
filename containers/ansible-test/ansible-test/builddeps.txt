@@ -1,5 +1,4 @@
 # Build-time dependencies for compiling Python C extensions
 gcc
 python3-devel
-python3-setuptools
 libffi-devel

@@ -84,3 +84,4 @@ wheel==0.48.0
 wrapt==2.2.2
 
 # The following packages are considered to be unsafe in a requirements file:
+setuptools==84.0.0

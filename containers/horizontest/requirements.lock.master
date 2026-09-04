@@ -134,3 +134,4 @@ xstatic-tv4==1.2.7.1
 xvfbwrapper==0.2.29
 
 # The following packages are considered to be unsafe in a requirements file:
+setuptools==84.0.0

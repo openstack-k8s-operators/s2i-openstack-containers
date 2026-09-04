@@ -5,7 +5,6 @@ gcc-c++
 python3
 python3-pip
 python3-devel
-python3-setuptools
 python3-wheel
 libffi-devel
 openssl-devel

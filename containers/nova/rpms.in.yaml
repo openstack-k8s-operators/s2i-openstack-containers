@@ -35,7 +35,6 @@ packages:
   - python3-numpy
   - python3-openvswitch3.5
   - python3-pip
-  - python3-setuptools
   - qemu-img
   - qemu-kvm-block-rbd
   - rust

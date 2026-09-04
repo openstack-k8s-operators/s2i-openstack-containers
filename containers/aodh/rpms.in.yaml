@@ -25,5 +25,4 @@ packages:
   - python3-devel
   - python3-mod_wsgi
   - python3-pip
-  - python3-setuptools
   - rust

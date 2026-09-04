@@ -146,3 +146,4 @@ yappi==1.7.6
 yarl==1.24.2
 
 # The following packages are considered to be unsafe in a requirements file:
+setuptools==76.1.0 ; python_version > "3.9"

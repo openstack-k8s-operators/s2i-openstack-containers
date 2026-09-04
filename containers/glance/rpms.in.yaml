@@ -28,7 +28,6 @@ packages:
   - python3-pip
   - python3-rados
   - python3-rbd
-  - python3-setuptools
   - python3-wheel
   - qemu-img
   - rust

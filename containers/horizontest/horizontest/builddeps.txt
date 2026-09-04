@@ -2,7 +2,6 @@ git-core
 gcc
 gcc-c++
 python3-devel
-python3-setuptools
 libffi-devel
 openssl-devel
 # Pinned to 43.x to match upper-constraints.txt (cryptography==43.0.3).

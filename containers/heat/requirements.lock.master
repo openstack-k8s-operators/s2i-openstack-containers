@@ -135,3 +135,4 @@ yappi==1.7.6
 yaql==3.2.0
 
 # The following packages are considered to be unsafe in a requirements file:
+setuptools==84.0.0

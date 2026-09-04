@@ -3,7 +3,6 @@ git-core
 gcc
 gcc-c++
 python3-devel
-python3-setuptools
 python3-wheel
 libffi-devel
 openssl-devel

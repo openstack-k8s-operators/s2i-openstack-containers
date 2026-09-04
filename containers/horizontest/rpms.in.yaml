@@ -4,11 +4,6 @@ contentOrigin:
 context:
   bare: true
 
-#
-# To update rpms.lock.yaml:
-#    rpm-lockfile-prototype rpms.in.yaml
-#
-
 arches:
   - x86_64
   - aarch64
@@ -33,7 +28,6 @@ packages:
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
   - python3-pip
-  - python3-setuptools
   - rust
   - tar
   - xorg-x11-server-Xvfb

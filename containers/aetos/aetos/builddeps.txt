@@ -2,7 +2,6 @@ git-core
 gcc
 gcc-c++
 python3-devel
-python3-setuptools
 libffi-devel
 openssl-devel
 libxml2
