@@ -1,0 +1,89 @@
+name: OSV-Scanner
+
+# Scan committed pip-compile lockfiles (requirements.lock.<stream>).
+# pythondeps.txt is unpinned input and is not scanned.
+#
+# pull_request: fail only on vulnerabilities newly introduced by the PR.
+# schedule / push to main: full inventory uploaded to the Security tab.
+# SARIF upload is disabled on pull_request so fork PRs keep a read-only token.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/osv-scanner.yml
+      - containers/**/pythonbuilddeps.txt
+      - containers/**/pythondeps.txt
+      - containers/**/requirements.lock*
+      - containers/**/sources.txt
+      - osv-scanner.toml
+  merge_group:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/osv-scanner.yml
+      - containers/**/pythonbuilddeps.txt
+      - containers/**/pythondeps.txt
+      - containers/**/requirements.lock*
+      - containers/**/sources.txt
+      - osv-scanner.toml
+  schedule:
+    - cron: '30 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lockfiles:
+    name: List Python lockfiles
+    runs-on: ubuntu-latest
+    outputs:
+      scan-args: ${{ steps.list.outputs.scan-args }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - id: list
+        name: Collect requirements.lock.* paths
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find containers -type f -name 'requirements.lock.*' | sort)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No requirements.lock.* files found under containers/" >&2
+            exit 1
+          fi
+          {
+            echo 'scan-args<<EOF'
+            echo '--config=osv-scanner.toml'
+            for f in "${files[@]}"; do
+              echo "--lockfile=requirements.txt:${f}"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "Scanning ${#files[@]} lockfile(s):"
+          printf '  %s\n' "${files[@]}"
+
+  scan-pr:
+    name: PR (new vulnerabilities)
+    needs: lockfiles
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+    with:
+      scan-args: ${{ needs.lockfiles.outputs.scan-args }}
+      upload-sarif: false
+
+  scan-scheduled:
+    name: Inventory (SARIF)
+    needs: lockfiles
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+    with:
+      scan-args: ${{ needs.lockfiles.outputs.scan-args }}
+      fail-on-vuln: false
+      upload-sarif: true
