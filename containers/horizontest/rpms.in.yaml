@@ -4,11 +4,6 @@ contentOrigin:
 context:
   bare: true
 
-#
-# To update rpms.lock.yaml:
-#    rpm-lockfile-prototype rpms.in.yaml
-#
-
 arches:
   - x86_64
   - aarch64

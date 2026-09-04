@@ -12,13 +12,15 @@
 # Streams:
 #   A stream defines a set of source repos at specific commits. Streams are
 #   defined in sources.txt files with the format:
-#     <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>
+#     <stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>
+#   The version is the Python package version for the pinned commit, or "-"
+#   for entries that do not build a Python package.
 #
 #   Examples:
-#     master upper-constraints https://opendev.org/openstack/requirements.git master abc123def456
-#     master watcher https://opendev.org/openstack/watcher.git master def789abc012
-#     hibiscus upper-constraints https://opendev.org/openstack/requirements.git stable/2024.2 fed321cba654
-#     hibiscus watcher https://opendev.org/openstack/watcher.git stable/2024.2 aaa111bbb222
+#     master upper-constraints https://opendev.org/openstack/requirements.git master abc123def456 -
+#     master watcher https://opendev.org/openstack/watcher.git master def789abc012 16.1.0.dev100
+#     hibiscus upper-constraints https://opendev.org/openstack/requirements.git stable/2024.2 fed321cba654 -
+#     hibiscus watcher https://opendev.org/openstack/watcher.git stable/2024.2 aaa111bbb222 13.0.1.dev4
 #
 #   The <branch-to-follow> field is informational — it records which branch
 #   the pinned hash came from. The build always checks out <pinned-hash>.
@@ -94,6 +96,8 @@
 #   PIP_NO_BINARY     If set, passed as --build-arg to buildah so Containerfiles
 #                     can set ENV PIP_NO_BINARY. Use ":all:" to force pip to
 #                     build all packages from source instead of using wheels.
+#   PBR_VERSION_FROM_GIT  If true, let PBR derive source package versions from
+#                     Git instead of using the versions pinned in sources.txt.
 #   REGISTRY_AUTH_FILE Authentication file passed explicitly to buildah push.
 #   REGISTRY_CERT_DIR  TLS certificate directory passed explicitly to buildah push.
 #
@@ -122,6 +126,7 @@ DEFAULT_STREAM="${DEFAULT_STREAM:-master}"
 SKIP_HASH_UPDATE="${SKIP_HASH_UPDATE:-}"
 REQUIREMENTS_SRC="${REQUIREMENTS_SRC:-}"
 PIP_NO_BINARY="${PIP_NO_BINARY:-}"
+PBR_VERSION_FROM_GIT="${PBR_VERSION_FROM_GIT:-false}"
 REGISTRY_AUTH_FILE="${REGISTRY_AUTH_FILE:-}"
 REGISTRY_CERT_DIR="${REGISTRY_CERT_DIR:-}"
 if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -227,7 +232,7 @@ ensure_project_constraints() {
   # Look for upper-constraints entry in project-level sources.txt
   local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
   if [[ -f "${project_sources}" ]]; then
-    while IFS=' ' read -r entry_stream name url branch pinned_hash; do
+    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${entry_stream}" != "${stream}" ]] && continue
       if [[ "${name}" == "upper-constraints" ]]; then
@@ -391,7 +396,7 @@ apply_requirement_exclusions() {
 # Process sources.txt files for a stream.
 # Project-level sources → containers/<project>/src/<name>/
 # Image-level sources → containers/<project>/<image>/src/<name>/
-# sources.txt format: <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>
+# sources.txt format: <stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>
 ensure_sources_for_stream() {
   local dir_name="$1"   # e.g., "watcher/watcher-api"
   local stream="$2"
@@ -401,7 +406,7 @@ ensure_sources_for_stream() {
   local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
   if [[ -f "${project_sources}" ]]; then
     local project_src_dir="${CONTAINERS_DIR}/${project}/src"
-    while IFS=' ' read -r entry_stream name url branch pinned_hash; do
+    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${entry_stream}" != "${stream}" ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
@@ -414,7 +419,7 @@ ensure_sources_for_stream() {
   local image_sources="${CONTAINERS_DIR}/${dir_name}/sources.txt"
   if [[ -f "${image_sources}" ]]; then
     local image_src_dir="${CONTAINERS_DIR}/${dir_name}/src"
-    while IFS=' ' read -r entry_stream name url branch pinned_hash; do
+    while IFS=' ' read -r entry_stream name url branch pinned_hash _version; do
       [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
       [[ "${entry_stream}" != "${stream}" ]] && continue
       [[ "${name}" == "upper-constraints" ]] && continue
@@ -512,6 +517,8 @@ build_image() {
     --build-arg "CONSTRAINTS_FILE=${build_constraints}" \
     --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
     ${PIP_NO_BINARY:+--build-arg "PIP_NO_BINARY=${PIP_NO_BINARY}"} \
+    --build-arg "PBR_VERSION_FROM_GIT=${PBR_VERSION_FROM_GIT}" \
+    --build-arg "SOURCE_VERSION_STREAM=${STREAM}" \
     -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
     "${CONTAINERS_DIR}/${project}/"
 }
@@ -832,9 +839,31 @@ clone_at_branch() {
   _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
 }
 
-# Update pinned hashes in a single sources.txt file for the given stream.
-# Clones source repos at the branch tip to resolve hashes, and extracts
-# upper-constraints.txt when encountered.
+# Calculate the Python package version for a checked-out source tree.
+# Non-Python sources use the explicit "-" sentinel.  The result is stored in
+# _SOURCE_VERSION_RESULT so callers do not lose state in a subshell.
+calculate_source_version() {
+  local src_dir="$1"
+  local package_name="$2"
+
+  if [[ ! -f "${src_dir}/pyproject.toml" && ! -f "${src_dir}/setup.cfg" ]]; then
+    _SOURCE_VERSION_RESULT="-"
+    return 0
+  fi
+
+  local version
+  if ! version=$(env -u PBR_VERSION python3 \
+      "${REPO_ROOT}/tools/source_version.py" \
+      "${src_dir}" "${package_name}"); then
+    echo "ERROR: Could not calculate package version in ${src_dir}" >&2
+    return 1
+  fi
+  _SOURCE_VERSION_RESULT="${version}"
+}
+
+# Update pinned hashes and package versions in a single sources.txt file for
+# the given stream. Clones source repos at the branch tip to resolve hashes,
+# and extracts upper-constraints.txt when encountered.
 # Args: <sources_file> <stream> <src_dir> <project_dir>
 update_sources_file() {
   local sources_file="$1"
@@ -857,7 +886,12 @@ update_sources_file() {
       continue
     fi
 
-    read -r entry_stream name url branch pinned_hash <<< "${line}"
+    read -r entry_stream name url branch pinned_hash pinned_version extra <<< "${line}"
+    if [[ -n "${extra:-}" ]]; then
+      echo "ERROR: Malformed source entry in ${sources_file}: ${line}" >&2
+      rm "${tmp_file}"
+      return 1
+    fi
 
     # Only update entries for the requested stream
     if [[ "${entry_stream}" != "${stream}" ]]; then
@@ -865,21 +899,39 @@ update_sources_file() {
       continue
     fi
 
-    local new_hash
+    local new_hash new_version
     if [[ "${name}" == "upper-constraints" ]]; then
-      # Clone without checkout, resolve hash from branch, extract file
-      local uc_tmp
-      uc_tmp=$(mktemp -d)
-      git clone --no-checkout "${url}" "${uc_tmp}" 2>/dev/null
-      new_hash=$(git -C "${uc_tmp}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-        || git -C "${uc_tmp}" rev-parse --verify "${branch}" 2>/dev/null)
-      git -C "${uc_tmp}" checkout "${new_hash}" -- upper-constraints.txt
-      cp "${uc_tmp}/upper-constraints.txt" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
-      rm -rf "${uc_tmp}"
+      new_version="-"
+      if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
+        new_hash="${pinned_hash}"
+      else
+        # Clone without checkout, resolve hash from branch, extract file
+        local uc_tmp
+        uc_tmp=$(mktemp -d)
+        git clone --no-checkout "${url}" "${uc_tmp}" 2>/dev/null
+        new_hash=$(git -C "${uc_tmp}" rev-parse --verify "origin/${branch}" 2>/dev/null \
+          || git -C "${uc_tmp}" rev-parse --verify "${branch}" 2>/dev/null)
+        git -C "${uc_tmp}" checkout "${new_hash}" -- upper-constraints.txt
+        cp "${uc_tmp}/upper-constraints.txt" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
+        rm -rf "${uc_tmp}"
+      fi
     elif [[ -d "${src_dir}/${name}" ]]; then
-      # Pre-existing checkout — use it for pip-compile but don't update the hash
-      echo "  ${name}: skipped (pre-existing checkout at ${src_dir}/${name})"
+      # Pre-existing checkout — use it for dependency generation but retain the
+      # pin. Refuse to pair it with metadata calculated from a different commit.
+      echo "  ${name}: using pre-existing checkout at ${src_dir}/${name}"
       new_hash="${pinned_hash}"
+      local checkout_hash
+      checkout_hash=$(git -C "${src_dir}/${name}" rev-parse HEAD 2>/dev/null || true)
+      if [[ -n "${checkout_hash}" && "${checkout_hash}" != "${pinned_hash}" ]]; then
+        echo "ERROR: ${src_dir}/${name} is at ${checkout_hash}, expected ${pinned_hash}" >&2
+        rm "${tmp_file}"
+        return 1
+      fi
+      if ! calculate_source_version "${src_dir}/${name}" "${name}"; then
+        rm "${tmp_file}"
+        return 1
+      fi
+      new_version="${_SOURCE_VERSION_RESULT}"
     else
       clone_at_branch "${src_dir}/${name}" "${url}" "${branch}"
       new_hash="${_CLONE_RESULT}"
@@ -887,6 +939,11 @@ update_sources_file() {
       # generated next by pip-compile omits them. Pre-existing checkouts (handled
       # above) are intentionally left untouched. Mirrors ensure_sources_for_stream.
       apply_requirement_exclusions "$(basename "${project_dir}")" "${src_dir}/${name}"
+      if ! calculate_source_version "${src_dir}/${name}" "${name}"; then
+        rm "${tmp_file}"
+        return 1
+      fi
+      new_version="${_SOURCE_VERSION_RESULT}"
     fi
 
     if [[ -z "${new_hash}" ]]; then
@@ -895,11 +952,11 @@ update_sources_file() {
       return 1
     fi
 
-    if [[ "${new_hash}" != "${pinned_hash}" ]]; then
-      echo "  ${name}: ${pinned_hash:-<empty>} → ${new_hash} (${branch})"
+    if [[ "${new_hash}" != "${pinned_hash}" || "${new_version}" != "${pinned_version:-}" ]]; then
+      echo "  ${name}: ${pinned_hash:-<empty>} ${pinned_version:-<empty>} → ${new_hash} ${new_version} (${branch})"
       updated=1
     fi
-    echo "${entry_stream} ${name} ${url} ${branch} ${new_hash}" >> "${tmp_file}"
+    echo "${entry_stream} ${name} ${url} ${branch} ${new_hash} ${new_version}" >> "${tmp_file}"
   done < "${sources_file}"
 
   if [[ ${updated} -eq 1 ]]; then
@@ -1700,9 +1757,8 @@ case "${ACTION}" in
     if [[ -n "${SKIP_HASH_UPDATE}" ]]; then
       echo "=== Skipping hash update (SKIP_HASH_UPDATE is set) ==="
       ensure_sources_for_targets "${TARGETS[@]}" "${STREAM}"
-    else
-      update_sources "${TARGETS[@]}" "${STREAM}"
     fi
+    update_sources "${TARGETS[@]}" "${STREAM}"
 
     # Generate lockfiles and metadata
     echo ""
@@ -1835,7 +1891,7 @@ case "${ACTION}" in
     done
     echo ""
     echo "sources.txt format:"
-    echo "  <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>"
+    echo "  <stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>"
     echo ""
     echo "Environment variables:"
     echo "  STREAM            Stream name (required for build)"
@@ -1852,6 +1908,7 @@ case "${ACTION}" in
     echo "  SKIP_HASH_UPDATE  Skip updating pinned hashes; regenerate locks only"
     echo "  REQUIREMENTS_SRC  Directory with upper-constraints.txt for sync-locks"
     echo "  PIP_NO_BINARY     Pass PIP_NO_BINARY to container build (e.g., ':all:')"
+    echo "  PBR_VERSION_FROM_GIT  Let PBR calculate source versions from Git (default: false)"
     echo "  REGISTRY_AUTH_FILE  Registry authentication file for pushes"
     echo "  REGISTRY_CERT_DIR   Registry TLS certificate directory for pushes"
     echo ""

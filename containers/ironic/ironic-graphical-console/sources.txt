@@ -1,3 +1,3 @@
-master libvncserver https://github.com/LibVNC/libvncserver.git LibVNCServer-0.9.15 9b54b1ec32731bd23158ca014dc18014db4194c3
-master x11vnc https://github.com/LibVNC/x11vnc.git 0.9.17 e2b726a8c0464051afda01648072af6835aaa5f7
-master xserver https://gitlab.freedesktop.org/xorg/xserver.git xorg-server-21.1.24 65d790bd208ec380b196eb98f144abb0b32e334d
+master libvncserver https://github.com/LibVNC/libvncserver.git LibVNCServer-0.9.15 9b54b1ec32731bd23158ca014dc18014db4194c3 -
+master x11vnc https://github.com/LibVNC/x11vnc.git 0.9.17 e2b726a8c0464051afda01648072af6835aaa5f7 -
+master xserver https://gitlab.freedesktop.org/xorg/xserver.git xorg-server-21.1.24 65d790bd208ec380b196eb98f144abb0b32e334d -

@@ -132,13 +132,24 @@ _setup_fixture() {
   REQ_HASH_OLD="$(git -C "${UPSTREAM_REQ}" rev-parse master~1)"
   REQ_HASH_NEW="$(git -C "${UPSTREAM_REQ}" rev-parse master)"
 
-  # ── Upstream service repo (2 commits) ──
+  # ── Upstream PBR service repo (2 commits) ──
   UPSTREAM_SVC="${TEST_DIR}/upstream/test-svc.git"
   work="$(mktemp -d)"
   _init_work_repo "${work}"
 
   echo "six" > "${work}/requirements.txt"
+  cat > "${work}/pyproject.toml" <<'TOML'
+[build-system]
+requires = ["pbr>=6.0.0"]
+build-backend = "pbr.build"
+TOML
+  cat > "${work}/setup.cfg" <<'CFG'
+[metadata]
+name = test-svc
+summary = Test service
+CFG
   git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v1" >/dev/null 2>&1
+  git -C "${work}" tag 1.0.0
 
   printf 'six\npbr\n' > "${work}/requirements.txt"
   git -C "${work}" add -A >/dev/null && git -C "${work}" commit -m "v2" >/dev/null 2>&1
@@ -183,8 +194,11 @@ _setup_fixture() {
   SVC3_HASH_OLD="$(git -C "${UPSTREAM_SVC3}" rev-parse master~1)"
   SVC3_HASH_NEW="$(git -C "${UPSTREAM_SVC3}" rev-parse master)"
 
-  # ── Symlink build.sh ──
+  # ── Symlink build.sh and its source-version helper ──
   ln -s "${SCRIPT_DIR}/build.sh" "${TEST_DIR}/build.sh"
+  mkdir -p "${TEST_DIR}/tools"
+  ln -s "${SCRIPT_DIR}/tools/source_version.py" \
+    "${TEST_DIR}/tools/source_version.py"
 
   # ── Containers tree ──
   mkdir -p "${TEST_DIR}/containers/test-svc/src"
@@ -268,7 +282,41 @@ test_updates_hashes_to_branch_tip() {
 
   local src="${TEST_DIR}/containers/test-svc/sources.txt"
   assert_field "${src}" master upper-constraints 5 "${REQ_HASH_NEW}"
+  assert_field "${src}" master upper-constraints 6 "-"
   assert_field "${src}" master test-svc 5 "${SVC_HASH_NEW}"
+  assert_field "${src}" master test-svc 6 "1.0.1.dev1"
+}
+
+test_skip_hash_update_records_pinned_version() {
+  _run_build STREAM=master SKIP_HASH_UPDATE=1
+
+  local src="${TEST_DIR}/containers/test-svc/sources.txt"
+  assert_field "${src}" master test-svc 5 "${SVC_HASH_OLD}"
+  assert_field "${src}" master test-svc 6 "1.0.0"
+}
+
+test_version_failure_leaves_sources_unchanged() {
+  local src="${TEST_DIR}/containers/test-svc/sources.txt"
+  local before
+  before=$(cat "${src}")
+  local fake_bin="${TEST_DIR}/fake-bin"
+  local real_python
+  real_python=$(command -v python3)
+  mkdir -p "${fake_bin}"
+  cat > "${fake_bin}/python3" <<EOF
+#!/usr/bin/env bash
+if [[ "\${3:-}" == "test-svc" ]]; then
+  exit 42
+fi
+exec "${real_python}" "\$@"
+EOF
+  chmod +x "${fake_bin}/python3"
+
+  if _run_build STREAM=master PATH="${fake_bin}:${PATH}"; then
+    echo "    ASSERTION FAILED: expected version calculation failure"
+    return 1
+  fi
+  assert "sources.txt unchanged" test "$(cat "${src}")" = "${before}"
 }
 
 test_fetches_upper_constraints() {
@@ -726,11 +774,8 @@ test_update_sources_applies_exclusions() {
 
   _run_build STREAM=master
 
-  local req="${TEST_DIR}/containers/test-svc/src/test-svc/requirements.txt"
-  assert_file_exists "${req}"
-  assert_grep '^six' "${req}"
-  assert_no_grep '^pbr' "${req}"
-
+  # Auto-cloned source trees are removed when build.sh exits, so validate the
+  # exclusion through the generated lockfile that consumes the edited tree.
   local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
   assert_file_exists "${lock}"
   assert_grep 'six' "${lock}"
@@ -870,6 +915,8 @@ echo ""
 
 TESTS=(
   test_updates_hashes_to_branch_tip
+  test_skip_hash_update_records_pinned_version
+  test_version_failure_leaves_sources_unchanged
   test_fetches_upper_constraints
   test_generates_rpms_in_yaml
   test_generates_requirements_lock

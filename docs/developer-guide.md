@@ -83,10 +83,12 @@ work on a local branch without `build.sh` overwriting it.
 This mechanism can be used to build containers with any arbitrary content,
 including unmerged commits. Place or symlink the desired source under
 `containers/<project>/src/<name>/` (or `containers/<project>/<image>/src/<name>/`
-for image-specific sources) before running `build.sh build`. The pinned hash in
-`sources.txt` is ignored for that package. This works both locally and in CI
-workflows -- for example, a Zuul or GitHub Actions job can clone a patch under
-review into `src/` and build containers that include the unmerged change.
+for image-specific sources) before running `build.sh build`. Set
+`PBR_VERSION_FROM_GIT=true` for these development builds so PBR calculates a
+version from the local checkout instead of using the version recorded in
+`sources.txt`. This works both locally and in CI workflows -- for example, a
+Zuul or GitHub Actions job can clone a patch under review into `src/` and build
+containers that include the unmerged change.
 
 ### Source overrides
 
@@ -137,17 +139,21 @@ by the `.<stream>` suffix on generated files.
 Each line defines a source repo pinned to a specific commit, grouped by stream:
 
 ```
-<stream> <name> <repo-url> <branch-to-follow> <pinned-hash>
+<stream> <name> <repo-url> <branch-to-follow> <pinned-hash> <version>
 ```
 
 Example:
 
 ```
-master upper-constraints https://opendev.org/openstack/requirements.git master 4bb8ff9ad664e832d78139e23f5933cca6054d35
-master watcher https://opendev.org/openstack/watcher.git master 4abcf29a3ec323a6df3f567d7485b320354af4f4
-stable upper-constraints https://opendev.org/openstack/requirements.git stable/2026.1 c4c55d5279d824dc261a43ac51b56146ccc4dd4f
-stable watcher https://opendev.org/openstack/watcher.git stable/2026.1 ba7b161dc24a6f2f1f7b7a2a529b8d93c65fee6c
+master upper-constraints https://opendev.org/openstack/requirements.git master 4bb8ff9ad664e832d78139e23f5933cca6054d35 -
+master watcher https://opendev.org/openstack/watcher.git master 4abcf29a3ec323a6df3f567d7485b320354af4f4 16.1.0.dev100
+stable upper-constraints https://opendev.org/openstack/requirements.git stable/2026.1 c4c55d5279d824dc261a43ac51b56146ccc4dd4f -
+stable watcher https://opendev.org/openstack/watcher.git stable/2026.1 ba7b161dc24a6f2f1f7b7a2a529b8d93c65fee6c 16.0.1.dev4
 ```
+
+`update-sources` calculates the Python package version at the same commit as
+the pin, making the hash/version pair atomic. Non-Python sources and the
+special `upper-constraints` entry use `-` as their version.
 
 The special name `upper-constraints` tells `build.sh` to fetch
 `upper-constraints.txt` from the repo instead of cloning the full repo
@@ -232,6 +238,7 @@ system packages and `pip install pip-tools` for the Python dependencies.
   `sync-locks` to generate lockfiles
 - `pybuild-deps` -- used by `update-sources` and `sync-locks` to generate
   build-requirements lockfiles
+- `pbr` and `packaging` -- calculate and validate versions for pinned sources
 
 If using tox (recommended), Python dependencies are installed automatically
 in the tox virtualenv.
@@ -553,7 +560,7 @@ Two-stage build:
 1. **Build stage** (FROM base AS build):
    - Installs build-time system and Python dependencies.
    - Copies source repos from the build context (`src/`).
-   - Builds wheels from source with `pip wheel --no-deps`.
+   - Builds wheels from source with the version recorded in `sources.txt`.
    - Generates a filtered constraints file (excludes source-built packages).
    - Records a build manifest (`source-built-packages.txt`) with
      package name, commit hash, and version.
@@ -584,6 +591,7 @@ Two-stage build:
 | `SKIP_HASH_UPDATE` | *(unset)* | If set, `update-sources` skips updating pinned hashes and clones repos at existing pins; lockfiles are still regenerated |
 | `REQUIREMENTS_SRC` | *(unset)* | Directory containing `upper-constraints.txt`. When set, `sync-locks` copies that file instead of fetching the stream branch tip |
 | `PIP_NO_BINARY` | *(unset)* | If set, passed as `--build-arg` to the container build so pip builds packages from source (e.g., `:all:`) |
+| `PBR_VERSION_FROM_GIT` | `false` | If true, let PBR calculate source versions from Git instead of using `sources.txt`; intended for development checkouts |
 
 ## CI path filtering
 
