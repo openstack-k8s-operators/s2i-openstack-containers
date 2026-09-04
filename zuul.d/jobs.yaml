@@ -21,7 +21,9 @@
       Build and publish OpenStack service container images for dependent
       jobs. This repository builds all maintained images by default;
       child jobs can select a subset, use auto-detect for speculative
-      rebuilds, and add related required projects.
+      rebuilds, or set ``s2i_ci_images: changes`` to rebuild only images
+      touched by the change. This repo's github-check pipeline uses
+      ``changes``.
     timeout: 7200
     nodeset: s2i-openstack-containers-image-builder
     required-projects:
