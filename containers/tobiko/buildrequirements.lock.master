@@ -21,12 +21,12 @@ pycparser==3.0
 pyproject-hooks==1.2.0
 semantic-version==2.10.0
 setuptools-rust==1.13.0
-setuptools-scm==10.2.2
+setuptools-scm==10.2.3
 setuptools-scm==7.1.0
 tomlkit==0.15.1
 trove-classifiers==2026.6.1.19
 typing-extensions==4.15.0
-vcs-versioning==2.3.2
+vcs-versioning==2.3.4
 wheel==0.46.2
 wheel==0.48.0
 zipp==4.1.0

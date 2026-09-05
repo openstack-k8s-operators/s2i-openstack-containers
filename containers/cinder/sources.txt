@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/openstack/requirements.git master b8de3b00af9dd2ffc1a85bf836cf3c7ee9e8bac7
-master cinder https://opendev.org/openstack/cinder.git master b5b763129e2bde5077c0cf3a5eb434021abaa6e0
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa
+master cinder https://opendev.org/openstack/cinder.git master a4767351ce74612281497cef7cd7a36f8d784f56

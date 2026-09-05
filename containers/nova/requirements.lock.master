@@ -47,7 +47,7 @@ os-brick==7.1.1
 os-resource-classes==1.1.0
 os-service-types==1.9.0
 os-traits==3.9.0
-os-vif==5.2.0
+os-vif==5.2.1
 osc-lib==4.7.0
 oslo-cache==4.3.0
 oslo-concurrency==7.6.1

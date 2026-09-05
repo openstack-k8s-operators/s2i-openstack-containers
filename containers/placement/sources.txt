@@ -1,3 +1,3 @@
 # stream  name               repo                                              branch  pinned-hash
-master    upper-constraints  https://opendev.org/openstack/requirements.git   master  eab1e430d8cb3ba465f699ceedff1684f8b9a2ea
-master    placement          https://opendev.org/openstack/placement.git      master  0d503c6df70aa3049c29d4c2d8672703e068463e
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa
+master placement https://opendev.org/openstack/placement.git master 7d35f974d52fdbb457ff2b6b7bff3741165dd30d

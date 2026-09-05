@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/openstack/requirements.git master f3766f7905e484780b52145c4c1b56d8ada797ae
-master barbican https://opendev.org/openstack/barbican.git master e2b8884acd976b283d5f5b6a5852fbc6ab1c87bc
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa
+master barbican https://opendev.org/openstack/barbican.git master 1efe16cd73b6e7d7c827aa8090665f2564de632e

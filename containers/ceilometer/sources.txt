@@ -1,3 +1,3 @@
 # stream  name               repo                                                     branch  pinned-hash
-master upper-constraints https://opendev.org/openstack/requirements.git master ddab97be8a4c5fe248db071fde9013ba530d7f72
-master ceilometer https://opendev.org/openstack/ceilometer.git master f5467d53ff4173bd2b7b63293ed4ce1ebd9f8db2
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa
+master ceilometer https://opendev.org/openstack/ceilometer.git master 9a6ea17568a062816261629db57c5405a93518a5

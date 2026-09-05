@@ -1,3 +1,3 @@
-master upper-constraints https://opendev.org/openstack/requirements.git master f3766f7905e484780b52145c4c1b56d8ada797ae
-master swift https://opendev.org/openstack/swift.git master e32bc963df516d6465912e5d2d6924925549c1da
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa
+master swift https://opendev.org/openstack/swift.git master 87834c289e96a6dd0be4635e506233d87c12c2a2
 master liberasurecode https://opendev.org/openstack/liberasurecode.git 1.8.0 d971d8554e05db1ad572030a4e249510780dd589
