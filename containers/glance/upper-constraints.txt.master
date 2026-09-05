@@ -173,7 +173,7 @@ graphviz===0.21
 PyKMIP===0.10.0
 python-observabilityclient===1.4.0
 whereto===0.6.0
-networking-generic-switch===10.0.0
+networking-generic-switch===10.1.0
 pywbem===1.9.0
 python-subunit===1.4.6
 pycparser===3.0
@@ -280,7 +280,7 @@ oslo.log===8.3.1
 nodeenv===1.10.0
 gossip===2.5.0
 suds-community===1.2.0
-os_vif===5.2.0
+os_vif===5.2.1
 qrcode===8.2
 oslo.middleware===8.2.0
 XStatic-mdi===1.6.50.3
@@ -351,7 +351,7 @@ infi.dtypes.iqn===0.4.0
 jsonpath-ng===1.8.0
 XStatic-tv4===1.2.7.1
 XStatic-JSEncrypt===2.3.1.2
-python-cinderclient===9.9.0
+python-cinderclient===9.10.0
 keystonemiddleware===13.0.1
 django-formtools===2.7
 XStatic-Spin===1.2.5.3
@@ -561,7 +561,7 @@ sortedcontainers===2.4.0
 microversion_parse===2.1.0
 python-linstor===1.29.0
 filelock===3.32.3
-python-tackerclient===2.5.0
+python-tackerclient===2.6.0
 python-heatclient===5.3.0
 oslo.utils===10.2.0
 requests-kerberos===0.15.0

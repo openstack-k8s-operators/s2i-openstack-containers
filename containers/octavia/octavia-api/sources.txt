@@ -1,4 +1,4 @@
 # Image-specific extra source: the OVN provider driver for Octavia, which
 # tcib installs as python3-ovn-octavia-provider in octavia-api.yaml. Built
 # from source here (like the main package) instead of pulled from an RPM.
-master ovn-octavia-provider https://opendev.org/openstack/ovn-octavia-provider.git master 62f955f258b8a3f7996a4c94ad0d2f97d93a31af
+master ovn-octavia-provider https://opendev.org/openstack/ovn-octavia-provider.git master 485b18e661d368feb82f87c499777052ee749458

@@ -1,2 +1,2 @@
 # <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>
-master upper-constraints https://opendev.org/openstack/requirements.git master 3353677727f8351bc58ba98efafe6bc884a0257c
+master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa

@@ -1,1 +1,1 @@
-master networking-baremetal https://opendev.org/openstack/networking-baremetal.git master 7b532a8906622c4e7b8cc9b6209cbb1067bdc9b8
+master networking-baremetal https://opendev.org/openstack/networking-baremetal.git master 2fe23081f329c83ad1c6274a3ffafd4e85d4918e
