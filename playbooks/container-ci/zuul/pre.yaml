@@ -2,6 +2,9 @@
 - name: Prepare shared build tools
   ansible.builtin.import_playbook: ../shared/prepare-host.yaml
 
+- name: Prepare package caches for container builds
+  ansible.builtin.import_playbook: prepare-mirrors.yaml
+
 - name: Deploy a plain Docker registry on the builder
   hosts: builder
   vars:

@@ -36,6 +36,11 @@
       s2i_ci_images: all
       s2i_ci_stream: master
       s2i_ci_content_provider: true
+      s2i_ci_use_provider_pip_mirror: true
+      s2i_ci_enable_rpm_cache: true
+      # The Vexxhost mirror does not currently carry the CentOS Stream 10
+      # SIG repositories used by these images, so cache their original URLs.
+      s2i_ci_rpm_cache_use_provider_mirror: false
 
 - job:
     name: s2i-speculative-deploy-test-base

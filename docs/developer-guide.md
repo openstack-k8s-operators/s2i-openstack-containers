@@ -76,6 +76,28 @@ These auto-cloned repos are tracked and **removed automatically on exit**
 (via an EXIT trap), so `src/` directories stay clean in the repo (only a
 `.gitkeep` is committed).
 
+Git source caching is optional and is separate from the package caches
+described below. Enable it for local source operations with:
+
+```bash
+SOURCE_CACHE=true STREAM=master tox -ebuild -- nova
+```
+
+When enabled, repository objects are retained as bare repositories under
+`.tmp/source_cache/<host>/<organization>/<repository>.git`. Branch and tag refs
+are refreshed once per repository in each `build.sh` invocation, then a fast
+local clone is materialized at the exact pinned commit. The disposable clone is
+removed on exit while the bare cache remains for later invocations. Set
+`SOURCE_CACHE_DIR` to override the cache location. Source caching defaults to
+`false`; direct temporary clones retain the previous behavior when disabled.
+
+To discard all cached Git objects and make the next cached source operation
+fetch them again, remove the cache directory:
+
+```bash
+rm -rf .tmp/source_cache
+```
+
 If a checkout already exists in `src/` (e.g., a local development clone),
 `build.sh` uses it as-is and does **not** remove it on exit. This lets you
 work on a local branch without `build.sh` overwriting it.
@@ -264,6 +286,67 @@ STREAM=stable tox -ecustom -- build watcher/watcher-base
 tox -ecustom -- list
 ```
 
+### Optional local package caches
+
+A developer-only Compose stack under `tools/local-package-cache/` provides
+[Proxpi](https://github.com/EpicWink/proxpi) for Python downloads and
+Squid for plain-HTTP RPM repository traffic. Package caching is disabled
+by default and affects only local `build` and `build-parallel` actions when
+`LOCAL_PACKAGE_CACHE=true`. Normal builds and Konflux builds remain unchanged.
+The cache-service lifecycle is intentionally separate from `build.sh`.
+
+`podman compose` requires a Compose provider. On CentOS Stream, install and
+verify `podman-compose` with:
+
+```bash
+sudo dnf install podman-compose
+podman compose version
+```
+
+Start the services, verify them, and opt a build into package caching:
+
+```bash
+LOCAL_CACHE_BIND_ADDRESS=0.0.0.0 \
+  podman compose -f tools/local-package-cache/compose.yaml up -d
+podman compose -f tools/local-package-cache/compose.yaml ps
+LOCAL_PACKAGE_CACHE=true STREAM=master tox -ebuild -- glance
+```
+
+Compose creates and manages the named Proxpi and Squid volumes declared
+in `compose.yaml`; do not create those volumes manually. They persist downloaded
+content across container replacement and ordinary `down`/`up` cycles.
+
+Build containers reach the published ports through
+`host.containers.internal`. Rootless containers generally cannot reach services
+bound only to host loopback, so the example publishes on all host interfaces.
+Binding to `0.0.0.0` can expose unauthenticated cache services to the local
+network; use host firewall rules or set `LOCAL_CACHE_BIND_ADDRESS` to a more
+specific reachable host address when possible. The Compose file defaults to
+`127.0.0.1` for safety when no address is specified.
+
+The build fails before invoking Buildah when `LOCAL_PACKAGE_CACHE=true` and
+either service is unavailable. Endpoint overrides are available through
+`LOCAL_PYPI_INDEX_URL`, `LOCAL_PYPI_TRUSTED_HOST`, `LOCAL_RPM_PROXY`,
+`LOCAL_PYPI_HEALTH_URL`, and `LOCAL_RPM_HEALTH_URL`.
+
+Stop the services while retaining downloaded packages:
+
+```bash
+podman compose -f tools/local-package-cache/compose.yaml down
+```
+
+Delete the services and their package-cache volumes for a cold package fetch:
+
+```bash
+podman compose -f tools/local-package-cache/compose.yaml down -v
+```
+
+This proof of concept caches external downloads only. It does not cache wheels
+built from the OpenStack source checkouts. HTTPS repositories normally pass
+through without TLS interception. Squid fetches the HTTPS origin behind
+`mirror.stream.centos.org` itself so the existing HTTP repository URLs remain
+cacheable.
+
 ### Initial setup
 
 1. Create `containers/<project>/sources.txt` with entries for each stream.
@@ -410,6 +493,37 @@ CentOS Stream 10 nodeset host named `builder`. All host preparation, registry
 validation, builds, publication, result generation, and cleanup target that
 host explicitly. The Zuul executor controls Ansible but does not perform those
 mutations.
+
+The provider copies the RDO base job's `/etc/pip.conf` into a job-local file
+and mounts it into Buildah so Python downloads use the provider mirror. It also
+can run an ephemeral Squid container directly with Podman. Squid caches direct
+upstream HTTP traffic or can sit in front of the provider's CentOS mirror. The
+cache is published on the disposable builder and Buildah RUN steps reach it through
+`host.containers.internal`. Proxy values are passed as build arguments so
+host-side base-image pulls are not routed through the package cache. The cache
+intentionally listens without authentication on all interfaces of the
+disposable CI builder. Plain-HTTP CentOS Stream requests can be remapped to the
+provider's CentOS mirror. Otherwise, Squid rewrites plain-HTTP CentOS requests
+to the upstream HTTPS origin before fetching them, without intercepting client
+TLS. The job does not consume host RPM repository files or require
+`podman-compose`. Post-run cleanup
+removes the cache container, its volumes, and generated configuration.
+Persistent source caching is explicitly disabled
+because Zuul already stages speculative source trees and the builder is
+disposable.
+
+`s2i_ci_use_provider_pip_mirror` controls whether the parent-provided
+`pip.conf` is mounted, `s2i_ci_enable_rpm_cache` controls the RPM proxy, and
+`s2i_ci_rpm_cache_use_provider_mirror` controls its optional CentOS Stream
+backend remap. Disabling Squid leaves RPM repository access unchanged;
+the provider mirror still applies to Python downloads when its pip option is
+enabled. The content-provider currently disables the RPM backend remap because
+the Vexxhost mirror does not carry the CentOS Stream 10 SIG repositories used
+by these images. Squid therefore caches their original repository URLs.
+Collapsed forwarding combines concurrent requests for the same object, and
+`repomd.xml` remains fresh for the two-hour job despite DNF cache-bypass
+headers. Squid access and error logs are staged under
+`zuul-output/logs/squid/` for troubleshooting.
 
 In this repository the provider defaults to `all`, so every maintained image
 is built from its exact `sources.txt` pins. A child job can set `s2i_ci_images`

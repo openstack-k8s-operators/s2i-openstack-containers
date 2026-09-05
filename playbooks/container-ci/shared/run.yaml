@@ -7,6 +7,25 @@
     s2i_ci_registry_connection_file: >-
       {{ s2i_ci_output_dir }}/.s2i-ci-registry-connection.json
     s2i_ci_workspace_root: "{{ zuul_user_dir | default(ansible_user_dir) }}"
+    s2i_ci_package_cache_dir: >-
+      {{ ansible_user_dir }}/.cache/s2i-ci-package-cache
+    s2i_ci_pip_config_file: "{{ s2i_ci_package_cache_dir }}/pip.conf"
+    s2i_ci_package_proxy: http://host.containers.internal:3142
+    s2i_ci_mirror_fqdn: >-
+      mirror.{{ nodepool.region | lower }}.{{ nodepool.cloud | lower }}.rdoproject.org
+    s2i_ci_build_no_proxy: >-
+      {{
+        (
+          ['localhost', '127.0.0.1', 'host.containers.internal',
+           s2i_ci_registry.public_host]
+          + ([s2i_ci_mirror_fqdn]
+             if ((s2i_ci_use_provider_pip_mirror | default(true) | bool) or
+                 ((s2i_ci_enable_rpm_cache | default(true) | bool) and
+                  (s2i_ci_rpm_cache_use_provider_mirror |
+                   default(true) | bool)))
+             else [])
+        ) | join(',')
+      }}
 
   tasks:
     - name: Default optional selective provider inputs
@@ -210,6 +229,7 @@
           environment:
             STREAM: "{{ s2i_ci_stream }}"
             REQUIREMENTS_SRC: "{{ s2i_ci_requirements_src | default('') }}"
+            SOURCE_CACHE: "false"
           register: s2i_ci_sync_locks
           changed_when: true
       always:
@@ -222,6 +242,35 @@
               {{ s2i_ci_sync_locks.stdout | default('') }}
               {{ s2i_ci_sync_locks.stderr | default('') }}
 
+    - name: Prepare the build command environment
+      ansible.builtin.set_fact:
+        s2i_ci_build_environment: >-
+          {{
+            {
+              'STREAM': s2i_ci_stream,
+              'REGISTRY': s2i_ci_registry.endpoint,
+              'NAMESPACE': s2i_ci_namespace,
+              'TAG': s2i_ci_tag,
+              'PARALLEL': s2i_ci_parallel | string,
+              'BUILD_LOGS_DIR': s2i_ci_log_dir,
+              'SOURCE_CACHE': 'false'
+            }
+            | combine(
+                {'BUILD_PIP_CONFIG_FILE': s2i_ci_pip_config_file}
+                if s2i_ci_use_provider_pip_mirror | default(true) | bool
+                else {}
+              )
+            | combine(
+                {
+                  'BUILD_HTTP_PROXY': s2i_ci_package_proxy,
+                  'BUILD_HTTPS_PROXY': s2i_ci_package_proxy,
+                  'BUILD_NO_PROXY': s2i_ci_build_no_proxy
+                }
+                if s2i_ci_enable_rpm_cache | default(true) | bool
+                else {}
+              )
+          }}
+
     - name: Build selected images
       ansible.builtin.command:
         argv:
@@ -229,13 +278,7 @@
           - build-parallel
           - "{{ s2i_ci_target_expression }}"
         chdir: "{{ s2i_ci_container_repo }}"
-      environment:
-        STREAM: "{{ s2i_ci_stream }}"
-        REGISTRY: "{{ s2i_ci_registry.endpoint }}"
-        NAMESPACE: "{{ s2i_ci_namespace }}"
-        TAG: "{{ s2i_ci_tag }}"
-        PARALLEL: "{{ s2i_ci_parallel | string }}"
-        BUILD_LOGS_DIR: "{{ s2i_ci_log_dir }}"
+      environment: "{{ s2i_ci_build_environment }}"
       register: s2i_ci_build
       changed_when: s2i_ci_build.rc == 0
 

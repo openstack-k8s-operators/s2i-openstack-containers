@@ -96,6 +96,21 @@
 #                     build all packages from source instead of using wheels.
 #   REGISTRY_AUTH_FILE Authentication file passed explicitly to buildah push.
 #   REGISTRY_CERT_DIR  TLS certificate directory passed explicitly to buildah push.
+#   LOCAL_PACKAGE_CACHE  If true, route build-time Python and plain-HTTP RPM
+#                     downloads through the local package-cache services.
+#   LOCAL_PYPI_INDEX_URL  Proxpi index URL visible inside build containers.
+#   LOCAL_PYPI_TRUSTED_HOST  Hostname trusted for the local HTTP Python index.
+#   LOCAL_RPM_PROXY   Squid URL visible inside build containers.
+#   LOCAL_PYPI_HEALTH_URL  Host-side URL used to check Proxpi readiness.
+#   LOCAL_RPM_HEALTH_URL  Host-side Squid URL used for its readiness check.
+#   BUILD_PIP_CONFIG_FILE  Optional pip.conf mounted into build containers.
+#   BUILD_HTTP_PROXY  Optional HTTP proxy passed only to Buildah RUN steps.
+#   BUILD_HTTPS_PROXY Optional HTTPS proxy passed only to Buildah RUN steps.
+#   BUILD_NO_PROXY    Optional proxy exclusion list for Buildah RUN steps.
+#   SOURCE_CACHE      If true, retain bare Git caches for source repositories
+#                     (default: false).
+#   SOURCE_CACHE_DIR  Bare Git source-cache location
+#                     (default: .tmp/source_cache).
 #
 # Extra HTTP artifacts:
 #   If containers/<project>/<image>/artifacts.txt exists, build.sh downloads
@@ -124,6 +139,22 @@ REQUIREMENTS_SRC="${REQUIREMENTS_SRC:-}"
 PIP_NO_BINARY="${PIP_NO_BINARY:-}"
 REGISTRY_AUTH_FILE="${REGISTRY_AUTH_FILE:-}"
 REGISTRY_CERT_DIR="${REGISTRY_CERT_DIR:-}"
+LOCAL_PACKAGE_CACHE="${LOCAL_PACKAGE_CACHE:-false}"
+LOCAL_PYPI_INDEX_URL="${LOCAL_PYPI_INDEX_URL:-http://host.containers.internal:3141/index/}"
+LOCAL_PYPI_TRUSTED_HOST="${LOCAL_PYPI_TRUSTED_HOST:-host.containers.internal}"
+LOCAL_RPM_PROXY="${LOCAL_RPM_PROXY:-http://host.containers.internal:3142}"
+LOCAL_PYPI_HEALTH_URL="${LOCAL_PYPI_HEALTH_URL:-http://127.0.0.1:3141/}"
+LOCAL_RPM_HEALTH_URL="${LOCAL_RPM_HEALTH_URL:-http://127.0.0.1:3142}"
+BUILD_PIP_CONFIG_FILE="${BUILD_PIP_CONFIG_FILE:-}"
+BUILD_HTTP_PROXY="${BUILD_HTTP_PROXY:-}"
+BUILD_HTTPS_PROXY="${BUILD_HTTPS_PROXY:-}"
+BUILD_NO_PROXY="${BUILD_NO_PROXY:-}"
+SOURCE_CACHE="${SOURCE_CACHE:-false}"
+SOURCE_CACHE_DIR="${SOURCE_CACHE_DIR:-${REPO_ROOT}/.tmp/source_cache}"
+if [[ "${SOURCE_CACHE}" != "true" && "${SOURCE_CACHE}" != "false" ]]; then
+  echo "ERROR: SOURCE_CACHE must be 'true' or 'false'" >&2
+  exit 1
+fi
 if [[ "$(uname -s)" == "Darwin" ]]; then
   PARALLEL="${PARALLEL:-$(sysctl -n hw.logicalcpu)}"
 else
@@ -212,6 +243,357 @@ cleanup_auto() {
 }
 trap cleanup_auto EXIT
 
+# Persistent bare repositories avoid repeatedly downloading source history.
+# Remote URLs use a readable <host>/<path> layout. Local paths are namespaced
+# below _local so the repository tests and local development sources can use
+# the same cache implementation.
+declare -A _SOURCE_CACHE_REFRESHED=()
+_SOURCE_CACHE_PATH_RESULT=""
+_SOURCE_CACHE_COMMIT_RESULT=""
+
+source_cache_path() {
+  local url="$1"
+  local host path rest authority component
+
+  case "${url}" in
+    http://*|https://*|ssh://*)
+      rest="${url#*://}"
+      if [[ "${rest}" != */* ]]; then
+        echo "ERROR: Source URL has no repository path: ${url}" >&2
+        return 1
+      fi
+      authority="${rest%%/*}"
+      path="${rest#*/}"
+      authority="${authority##*@}"
+      host="${authority%%:*}"
+      ;;
+    *@*:* )
+      authority="${url%%:*}"
+      host="${authority##*@}"
+      path="${url#*:}"
+      ;;
+    /*)
+      host="_local"
+      path="${url#/}"
+      ;;
+    *)
+      echo "ERROR: Unsupported source URL or path: ${url}" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "${host}" || -z "${path}" || "${url}" == *\?* || "${url}" == *\#* ]]; then
+    echo "ERROR: Unsafe source URL for cache path: ${url}" >&2
+    return 1
+  fi
+  if [[ ! "${host}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: Unsafe source host for cache path: ${host}" >&2
+    return 1
+  fi
+
+  local -a path_parts=()
+  IFS='/' read -ra path_parts <<< "${path}"
+  for component in "${path_parts[@]}"; do
+    if [[ -z "${component}" || "${component}" == "." || \
+          "${component}" == ".." || \
+          ! "${component}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+      echo "ERROR: Unsafe source path component in ${url}: ${component}" >&2
+      return 1
+    fi
+  done
+
+  _SOURCE_CACHE_PATH_RESULT="${SOURCE_CACHE_DIR}/${host}/${path}"
+}
+
+acquire_source_cache_lock() {
+  local lock_dir="$1"
+  local waited=0 owner=""
+
+  while ! mkdir "${lock_dir}" 2>/dev/null; do
+    if [[ -f "${lock_dir}/pid" ]]; then
+      owner=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+      if [[ "${owner}" =~ ^[0-9]+$ ]] && ! kill -0 "${owner}" 2>/dev/null; then
+        echo "--- Removing stale source-cache lock: ${lock_dir} ---"
+        rm -rf "${lock_dir}"
+        continue
+      fi
+    fi
+    if [[ "${waited}" -ge 60 ]]; then
+      echo "ERROR: Timed out waiting for source-cache lock ${lock_dir}" >&2
+      return 1
+    fi
+    sleep 1
+    ((waited++)) || true
+  done
+  echo "$$" > "${lock_dir}/pid"
+}
+
+refresh_source_cache() {
+  local url="$1"
+  source_cache_path "${url}" || return 1
+  local cache_path="${_SOURCE_CACHE_PATH_RESULT}"
+  [[ -n "${_SOURCE_CACHE_REFRESHED[${cache_path}]:-}" ]] && return 0
+
+  local lock_dir="${cache_path}.lock"
+  mkdir -p "$(dirname "${cache_path}")"
+  acquire_source_cache_lock "${lock_dir}" || return 1
+
+  local rc=0 tmp_cache=""
+  if [[ -e "${cache_path}" && \
+        (! -f "${cache_path}/HEAD" || ! -d "${cache_path}/objects") ]]; then
+    echo "ERROR: Invalid source cache at ${cache_path}" >&2
+    rc=1
+  elif [[ ! -e "${cache_path}" ]]; then
+    tmp_cache="${cache_path}.tmp.$$.$RANDOM"
+    rm -rf "${tmp_cache}"
+    if git init --bare --quiet "${tmp_cache}" && \
+       git --git-dir="${tmp_cache}" remote add origin "${url}" && \
+       git --git-dir="${tmp_cache}" config gc.auto 0 && \
+       mv "${tmp_cache}" "${cache_path}"; then
+      echo "--- Created source cache: ${cache_path} ---"
+    else
+      rc=$?
+      rm -rf "${tmp_cache}"
+    fi
+  fi
+
+  if [[ "${rc}" -eq 0 ]]; then
+    git --git-dir="${cache_path}" remote set-url origin "${url}"
+    git --git-dir="${cache_path}" config --replace-all remote.origin.fetch \
+      '+refs/heads/*:refs/heads/*'
+    echo "--- Refreshing source cache: ${cache_path} ---"
+    git --git-dir="${cache_path}" fetch --prune --force --tags origin || rc=$?
+  fi
+
+  rm -rf "${lock_dir}"
+  [[ "${rc}" -eq 0 ]] || return "${rc}"
+  _SOURCE_CACHE_REFRESHED["${cache_path}"]=1
+}
+
+ensure_cached_commit() {
+  local url="$1"
+  local commit="$2"
+  refresh_source_cache "${url}" || return 1
+  local cache_path="${_SOURCE_CACHE_PATH_RESULT}"
+  if ! git --git-dir="${cache_path}" cat-file -e "${commit}^{commit}" 2>/dev/null; then
+    echo "ERROR: Commit ${commit} is not available in source cache ${cache_path}" >&2
+    return 1
+  fi
+}
+
+resolve_cached_ref() {
+  local url="$1"
+  local ref="$2"
+  refresh_source_cache "${url}" || return 1
+  local cache_path="${_SOURCE_CACHE_PATH_RESULT}"
+  local commit=""
+  commit=$(git --git-dir="${cache_path}" rev-parse --verify \
+    "refs/heads/${ref}^{commit}" 2>/dev/null || true)
+  if [[ -z "${commit}" ]]; then
+    commit=$(git --git-dir="${cache_path}" rev-parse --verify \
+      "refs/tags/${ref}^{commit}" 2>/dev/null || true)
+  fi
+  if [[ -z "${commit}" ]]; then
+    commit=$(git --git-dir="${cache_path}" rev-parse --verify \
+      "${ref}^{commit}" 2>/dev/null || true)
+  fi
+  if [[ -z "${commit}" ]]; then
+    echo "ERROR: Could not resolve ref '${ref}' for ${url}" >&2
+    return 1
+  fi
+  _SOURCE_CACHE_COMMIT_RESULT="${commit}"
+}
+
+extract_cached_file() {
+  local url="$1"
+  local commit="$2"
+  local source_path="$3"
+  local destination="$4"
+  ensure_cached_commit "${url}" "${commit}" || return 1
+  local cache_path="${_SOURCE_CACHE_PATH_RESULT}"
+  local tmp_file
+  tmp_file=$(mktemp "${destination}.XXXXXX")
+  if ! git --git-dir="${cache_path}" show \
+      "${commit}:${source_path}" > "${tmp_file}"; then
+    rm -f "${tmp_file}"
+    return 1
+  fi
+  mv "${tmp_file}" "${destination}"
+}
+
+materialize_cached_source() {
+  local dest="$1"
+  local url="$2"
+  local commit="$3"
+
+  ensure_cached_commit "${url}" "${commit}" || return 1
+  local cache_path="${_SOURCE_CACHE_PATH_RESULT}"
+  mkdir -p "$(dirname "${dest}")"
+  echo "--- Cloning cached ${url} at ${commit} into ${dest} ---"
+  if ! git clone --local --no-checkout "${cache_path}" "${dest}"; then
+    rm -rf "${dest}"
+    return 1
+  fi
+  _AUTO_CLONED["${dest}"]=1
+  git -C "${dest}" remote set-url origin "${url}"
+  git -C "${dest}" checkout --detach "${commit}"
+  if [[ "$(git -C "${dest}" rev-parse HEAD)" != "${commit}" ]]; then
+    echo "ERROR: Cached checkout at ${dest} does not match ${commit}" >&2
+    return 1
+  fi
+}
+
+extract_source_file() {
+  local url="$1"
+  local commit="$2"
+  local source_path="$3"
+  local destination="$4"
+
+  if [[ "${SOURCE_CACHE}" == "true" ]]; then
+    extract_cached_file "${url}" "${commit}" "${source_path}" "${destination}"
+    return
+  fi
+
+  local tmp_repo tmp_file
+  tmp_repo=$(mktemp -d)
+  tmp_file=$(mktemp "${destination}.XXXXXX")
+  if ! git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null ||
+     ! git -C "${tmp_repo}" show \
+       "${commit}:${source_path}" > "${tmp_file}"; then
+    rm -rf "${tmp_repo}" "${tmp_file}"
+    return 1
+  fi
+  mv "${tmp_file}" "${destination}"
+  rm -rf "${tmp_repo}"
+}
+
+resolve_and_extract_source_file() {
+  local url="$1"
+  local ref="$2"
+  local source_path="$3"
+  local destination="$4"
+
+  if [[ "${SOURCE_CACHE}" == "true" ]]; then
+    resolve_cached_ref "${url}" "${ref}" || return 1
+    extract_cached_file "${url}" "${_SOURCE_CACHE_COMMIT_RESULT}" \
+      "${source_path}" "${destination}"
+    return
+  fi
+
+  local tmp_repo tmp_file commit
+  tmp_repo=$(mktemp -d)
+  tmp_file=$(mktemp "${destination}.XXXXXX")
+  if ! git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null; then
+    rm -rf "${tmp_repo}" "${tmp_file}"
+    return 1
+  fi
+  commit=$(git -C "${tmp_repo}" rev-parse --verify \
+    "origin/${ref}^{commit}" 2>/dev/null ||
+    git -C "${tmp_repo}" rev-parse --verify "${ref}^{commit}" 2>/dev/null) || {
+    rm -rf "${tmp_repo}" "${tmp_file}"
+    return 1
+  }
+  if ! git -C "${tmp_repo}" show \
+      "${commit}:${source_path}" > "${tmp_file}"; then
+    rm -rf "${tmp_repo}" "${tmp_file}"
+    return 1
+  fi
+  mv "${tmp_file}" "${destination}"
+  rm -rf "${tmp_repo}"
+  _SOURCE_CACHE_COMMIT_RESULT="${commit}"
+}
+
+# Optional local package caches are build-only. Their lifecycle is deliberately
+# managed outside this script; see tools/local-package-cache/compose.yaml.
+declare -a _BUILDAH_BUD_ARGS=()
+
+add_build_proxy_args() {
+  local http_proxy="$1"
+  local https_proxy="$2"
+  local no_proxy="$3"
+  local name value
+
+  for name in HTTP_PROXY HTTPS_PROXY NO_PROXY; do
+    case "${name}" in
+      HTTP_PROXY) value="${http_proxy}" ;;
+      HTTPS_PROXY) value="${https_proxy}" ;;
+      NO_PROXY) value="${no_proxy}" ;;
+    esac
+    [[ -n "${value}" ]] || continue
+    _BUILDAH_BUD_ARGS+=(--build-arg "${name}=${value}")
+    _BUILDAH_BUD_ARGS+=(--build-arg "${name,,}=${value}")
+  done
+}
+
+prepare_build_proxy() {
+  add_build_proxy_args \
+    "${BUILD_HTTP_PROXY}" "${BUILD_HTTPS_PROXY}" "${BUILD_NO_PROXY}"
+}
+
+prepare_build_pip_config() {
+  [[ -n "${BUILD_PIP_CONFIG_FILE}" ]] || return 0
+  if [[ "${LOCAL_PACKAGE_CACHE}" == "true" ]]; then
+    echo "ERROR: Local package cache and BUILD_PIP_CONFIG_FILE cannot be combined" >&2
+    return 1
+  fi
+  if [[ ! -f "${BUILD_PIP_CONFIG_FILE}" || \
+        ! -r "${BUILD_PIP_CONFIG_FILE}" ]]; then
+    echo "ERROR: Build pip configuration is not readable: ${BUILD_PIP_CONFIG_FILE}" >&2
+    return 1
+  fi
+  _BUILDAH_BUD_ARGS+=(
+    --volume "${BUILD_PIP_CONFIG_FILE}:/etc/pip.conf:ro,z"
+  )
+  echo "--- Using build pip configuration: ${BUILD_PIP_CONFIG_FILE} ---"
+}
+
+prepare_local_package_cache() {
+  [[ "${LOCAL_PACKAGE_CACHE}" == "true" ]] || return 0
+
+  if [[ -n "${BUILD_HTTP_PROXY}${BUILD_HTTPS_PROXY}${BUILD_NO_PROXY}" ]]; then
+    echo "ERROR: Local package cache and build proxy settings cannot be combined" >&2
+    return 1
+  fi
+
+  if ! command -v curl >/dev/null; then
+    echo "ERROR: curl is required when LOCAL_PACKAGE_CACHE=true" >&2
+    return 1
+  fi
+
+  if ! curl -fsS --max-time 5 -o /dev/null "${LOCAL_PYPI_HEALTH_URL}"; then
+    echo "ERROR: Proxpi cache is unavailable at ${LOCAL_PYPI_HEALTH_URL}" >&2
+    echo "       Start tools/local-package-cache/compose.yaml or disable LOCAL_PACKAGE_CACHE." >&2
+    return 1
+  fi
+
+  local rpm_health_target="http://mirror.stream.centos.org/10-stream/AppStream/x86_64/os/repodata/repomd.xml"
+  if ! curl -fsS --max-time 15 --proxy "${LOCAL_RPM_HEALTH_URL}" \
+    -o /dev/null "${rpm_health_target}"; then
+    echo "ERROR: Squid cache is unavailable at ${LOCAL_RPM_HEALTH_URL}" >&2
+    echo "       Start tools/local-package-cache/compose.yaml or disable LOCAL_PACKAGE_CACHE." >&2
+    return 1
+  fi
+
+  local cache_dir="${REPO_ROOT}/.tmp/local-package-cache"
+  local pip_config="${cache_dir}/pip.conf"
+  mkdir -p "${cache_dir}"
+  cat > "${pip_config}" <<EOF
+[global]
+index-url = ${LOCAL_PYPI_INDEX_URL}
+trusted-host = ${LOCAL_PYPI_TRUSTED_HOST}
+EOF
+
+  local cache_no_proxy="host.containers.internal,localhost,127.0.0.1"
+  [[ -n "${NO_PROXY:-}" ]] && cache_no_proxy+=",${NO_PROXY}"
+  _BUILDAH_BUD_ARGS+=(--volume "${pip_config}:/etc/pip.conf:ro,z")
+  add_build_proxy_args "${LOCAL_RPM_PROXY}" "" "${cache_no_proxy}"
+  echo "--- Using local package caches: Proxpi and Squid ---"
+}
+
+buildah_bud() {
+  buildah bud "${_BUILDAH_BUD_ARGS[@]}" "$@"
+}
+
 # Ensure constraints file exists for a project.
 # Looks for an "upper-constraints" entry in the project's sources.txt
 # for the current stream and fetches the file at the pinned hash.
@@ -232,12 +614,8 @@ ensure_project_constraints() {
       [[ "${entry_stream}" != "${stream}" ]] && continue
       if [[ "${name}" == "upper-constraints" ]]; then
         echo "--- Fetching ${UPSTREAM_CONSTRAINTS}.${stream} for ${project} from ${url} at ${pinned_hash} ---"
-        local tmp_repo
-        tmp_repo=$(mktemp -d)
-        git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null
-        git -C "${tmp_repo}" checkout "${pinned_hash}" -- upper-constraints.txt
-        cp "${tmp_repo}/upper-constraints.txt" "${constraints_file}"
-        rm -rf "${tmp_repo}"
+        extract_source_file "${url}" "${pinned_hash}" \
+          upper-constraints.txt "${constraints_file}"
         return
       fi
     done < "${project_sources}"
@@ -281,20 +659,10 @@ refresh_project_constraints() {
     [[ "${entry_stream}" != "${stream}" ]] && continue
     if [[ "${name}" == "upper-constraints" ]]; then
       echo "--- Fetching ${UPSTREAM_CONSTRAINTS}.${stream} for ${project} from ${url} at ${branch} tip ---"
-      local tmp_repo tip_hash
-      tmp_repo=$(mktemp -d)
-      git clone --no-checkout "${url}" "${tmp_repo}" 2>/dev/null
-      tip_hash=$(git -C "${tmp_repo}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-        || git -C "${tmp_repo}" rev-parse --verify "${branch}" 2>/dev/null)
-      if [[ -z "${tip_hash}" ]]; then
-        echo "ERROR: Could not resolve ref '${branch}' for ${url}" >&2
-        rm -rf "${tmp_repo}"
-        return 1
-      fi
-      git -C "${tmp_repo}" checkout "${tip_hash}" -- upper-constraints.txt
-      cp "${tmp_repo}/upper-constraints.txt" "${constraints_file}"
+      resolve_and_extract_source_file "${url}" "${branch}" \
+        upper-constraints.txt "${constraints_file}" || return 1
+      local tip_hash="${_SOURCE_CACHE_COMMIT_RESULT}"
       echo "  upper-constraints: using ${tip_hash} (${branch} tip; pin ${pinned_hash} unchanged)"
-      rm -rf "${tmp_repo}"
       return
     fi
   done < "${project_sources}"
@@ -354,11 +722,19 @@ clone_at_hash() {
     return
   fi
 
+  if [[ "${SOURCE_CACHE}" == "true" ]]; then
+    materialize_cached_source "${dest}" "${url}" "${pinned_hash}"
+    return
+  fi
+
   mkdir -p "$(dirname "${dest}")"
   echo "--- Cloning ${url} at ${pinned_hash} into ${dest} ---"
-  git clone "${url}" "${dest}"
-  git -C "${dest}" checkout "${pinned_hash}"
+  if ! git clone "${url}" "${dest}"; then
+    rm -rf "${dest}"
+    return 1
+  fi
   _AUTO_CLONED["${dest}"]=1
+  git -C "${dest}" checkout --detach "${pinned_hash}"
 }
 
 # Strip excluded runtime requirements from a cloned source tree.
@@ -444,7 +820,7 @@ build_image() {
       ensure_project_constraints "${dir_name}" "${STREAM}"
       base_constraints="${UPSTREAM_CONSTRAINTS}.${STREAM}"
     fi
-    buildah bud \
+    buildah_bud \
       $(image_tag_args "${dir_name}") \
       --build-arg "CONSTRAINTS_FILE=${base_constraints}" \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
@@ -463,7 +839,7 @@ build_image() {
 
   # Pure RPM project: no sources to clone, no constraints needed
   if [[ ! -f "${CONTAINERS_DIR}/${project}/sources.txt" ]]; then
-    buildah bud \
+    buildah_bud \
       $(image_tag_args "${dir_name}") \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
       -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
@@ -507,7 +883,7 @@ build_image() {
     build_constraints="${UPSTREAM_CONSTRAINTS}.${STREAM}"
   fi
 
-  buildah bud \
+  buildah_bud \
     $(image_tag_args "${dir_name}") \
     --build-arg "CONSTRAINTS_FILE=${build_constraints}" \
     --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
@@ -819,16 +1195,25 @@ clone_at_branch() {
 
   if [[ -d "${dest}" ]]; then
     echo "--- Using existing source: ${dest} ---"
-  else
-    mkdir -p "$(dirname "${dest}")"
-    echo "--- Cloning ${url} (${branch}) into ${dest} ---"
-    if ! git clone --branch "${branch}" "${url}" "${dest}" 2>/dev/null; then
-      git clone "${url}" "${dest}" 2>/dev/null
-      git -C "${dest}" checkout "${branch}"
-    fi
-    _AUTO_CLONED["${dest}"]=1
+    _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
+    return
   fi
 
+  if [[ "${SOURCE_CACHE}" == "true" ]]; then
+    resolve_cached_ref "${url}" "${branch}" || return 1
+    _CLONE_RESULT="${_SOURCE_CACHE_COMMIT_RESULT}"
+    materialize_cached_source "${dest}" "${url}" "${_CLONE_RESULT}" || return 1
+    return
+  fi
+
+  mkdir -p "$(dirname "${dest}")"
+  echo "--- Cloning ${url} (${branch}) into ${dest} ---"
+  if ! git clone --branch "${branch}" "${url}" "${dest}" 2>/dev/null; then
+    rm -rf "${dest}"
+    git clone "${url}" "${dest}" 2>/dev/null
+    git -C "${dest}" checkout "${branch}"
+  fi
+  _AUTO_CLONED["${dest}"]=1
   _CLONE_RESULT=$(git -C "${dest}" rev-parse HEAD)
 }
 
@@ -867,15 +1252,13 @@ update_sources_file() {
 
     local new_hash
     if [[ "${name}" == "upper-constraints" ]]; then
-      # Clone without checkout, resolve hash from branch, extract file
-      local uc_tmp
-      uc_tmp=$(mktemp -d)
-      git clone --no-checkout "${url}" "${uc_tmp}" 2>/dev/null
-      new_hash=$(git -C "${uc_tmp}" rev-parse --verify "origin/${branch}" 2>/dev/null \
-        || git -C "${uc_tmp}" rev-parse --verify "${branch}" 2>/dev/null)
-      git -C "${uc_tmp}" checkout "${new_hash}" -- upper-constraints.txt
-      cp "${uc_tmp}/upper-constraints.txt" "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}"
-      rm -rf "${uc_tmp}"
+      resolve_and_extract_source_file "${url}" "${branch}" \
+        upper-constraints.txt \
+        "${project_dir}/${UPSTREAM_CONSTRAINTS}.${stream}" || {
+        rm "${tmp_file}"
+        return 1
+      }
+      new_hash="${_SOURCE_CACHE_COMMIT_RESULT}"
     elif [[ -d "${src_dir}/${name}" ]]; then
       # Pre-existing checkout — use it for pip-compile but don't update the hash
       echo "  ${name}: skipped (pre-existing checkout at ${src_dir}/${name})"
@@ -1561,11 +1944,17 @@ fi
 
 case "${ACTION}" in
   build)
+    prepare_build_proxy
+    prepare_build_pip_config
+    prepare_local_package_cache
     for img in $(resolve_targets "${TARGETS[@]}"); do
       build_image "${img}"
     done
     ;;
   build-parallel)
+    prepare_build_proxy
+    prepare_build_pip_config
+    prepare_local_package_cache
     _bp_targets=($(resolve_targets "${TARGETS[@]}"))
     if [[ ! "${PARALLEL}" =~ ^[1-9][0-9]*$ ]]; then
       echo "ERROR: PARALLEL must be a positive integer" >&2
@@ -1854,6 +2243,18 @@ case "${ACTION}" in
     echo "  PIP_NO_BINARY     Pass PIP_NO_BINARY to container build (e.g., ':all:')"
     echo "  REGISTRY_AUTH_FILE  Registry authentication file for pushes"
     echo "  REGISTRY_CERT_DIR   Registry TLS certificate directory for pushes"
+    echo "  LOCAL_PACKAGE_CACHE  Use optional local Proxpi and RPM caches (default: false)"
+    echo "  LOCAL_PYPI_INDEX_URL  Proxpi index URL visible inside build containers"
+    echo "  LOCAL_PYPI_TRUSTED_HOST  Trusted hostname for the local HTTP Python index"
+    echo "  LOCAL_RPM_PROXY      Squid URL visible inside build containers"
+    echo "  LOCAL_PYPI_HEALTH_URL  Host-side Proxpi readiness URL"
+    echo "  LOCAL_RPM_HEALTH_URL  Host-side Squid URL used for its readiness check"
+    echo "  BUILD_PIP_CONFIG_FILE  pip.conf mounted into build containers"
+    echo "  BUILD_HTTP_PROXY     HTTP proxy for Buildah RUN steps"
+    echo "  BUILD_HTTPS_PROXY    HTTPS proxy for Buildah RUN steps"
+    echo "  BUILD_NO_PROXY       Proxy exclusions for Buildah RUN steps"
+    echo "  SOURCE_CACHE         Retain bare Git source caches (default: false)"
+    echo "  SOURCE_CACHE_DIR     Bare Git source-cache location (default: .tmp/source_cache)"
     echo ""
     echo "Source directories: containers/<project>/src/<name>/"
     echo "Overrides:          containers/<project>/src/overrides/<pkg>/"

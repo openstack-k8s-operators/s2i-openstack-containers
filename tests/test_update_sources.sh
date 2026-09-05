@@ -726,15 +726,68 @@ test_update_sources_applies_exclusions() {
 
   _run_build STREAM=master
 
-  local req="${TEST_DIR}/containers/test-svc/src/test-svc/requirements.txt"
-  assert_file_exists "${req}"
-  assert_grep '^six' "${req}"
-  assert_no_grep '^pbr' "${req}"
-
+  # Auto-cloned source trees are removed when build.sh exits, so validate the
+  # exclusion through the generated lockfile that consumes the edited tree.
   local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
   assert_file_exists "${lock}"
   assert_grep 'six' "${lock}"
   assert_no_grep '^pbr' "${lock}"
+}
+
+# ── Source-cache tests ───────────────────────────────────────────────────
+
+test_source_cache_persists_after_checkout_cleanup() {
+  _run_build SOURCE_CACHE=true STREAM=master
+
+  local cache_root="${TEST_DIR}/.tmp/source_cache/_local"
+  local service_cache="${cache_root}/${UPSTREAM_SVC#/}"
+  local requirements_cache="${cache_root}/${UPSTREAM_REQ#/}"
+  assert_file_exists "${service_cache}/HEAD"
+  assert_file_exists "${requirements_cache}/HEAD"
+  assert "service cache is bare" test \
+    "$(git --git-dir="${service_cache}" rev-parse --is-bare-repository)" = true
+  assert "cache has branch tip" test \
+    "$(git --git-dir="${service_cache}" rev-parse refs/heads/master)" = \
+    "${SVC_HASH_NEW}"
+  assert "temporary checkout removed" test ! -d \
+    "${TEST_DIR}/containers/test-svc/src/test-svc"
+}
+
+test_source_cache_refreshes_advanced_branch() {
+  _run_build SOURCE_CACHE=true STREAM=master
+
+  local work
+  work=$(mktemp -d)
+  git clone "${UPSTREAM_SVC}" "${work}" >/dev/null 2>&1
+  git -C "${work}" config user.email "test@test.com"
+  git -C "${work}" config user.name "Test"
+  echo "fixtures" >> "${work}/requirements.txt"
+  git -C "${work}" add requirements.txt
+  git -C "${work}" commit -m "v3" >/dev/null 2>&1
+  git -C "${work}" push origin master >/dev/null 2>&1
+  local advanced_hash
+  advanced_hash=$(git -C "${work}" rev-parse HEAD)
+  rm -rf "${work}"
+
+  _run_build SOURCE_CACHE=true STREAM=master
+
+  local source_file="${TEST_DIR}/containers/test-svc/sources.txt"
+  local service_cache="${TEST_DIR}/.tmp/source_cache/_local/${UPSTREAM_SVC#/}"
+  assert_field "${source_file}" master test-svc 5 "${advanced_hash}"
+  assert "cache fetched advanced branch" test \
+    "$(git --git-dir="${service_cache}" rev-parse refs/heads/master)" = \
+    "${advanced_hash}"
+}
+
+test_source_cache_disabled_uses_direct_clones() {
+  _run_build SOURCE_CACHE=false STREAM=master
+
+  assert "source cache not created" test ! -e \
+    "${TEST_DIR}/.tmp/source_cache"
+  assert "temporary checkout removed" test ! -d \
+    "${TEST_DIR}/containers/test-svc/src/test-svc"
+  assert_field "${TEST_DIR}/containers/test-svc/sources.txt" \
+    master test-svc 5 "${SVC_HASH_NEW}"
 }
 
 # ── sync-locks tests ─────────────────────────────────────────────────────
@@ -909,6 +962,9 @@ TESTS=(
   test_update_lockfiles_pure_rpm_skips_lockfiles
   test_update_sources_all_includes_pure_rpm
   test_update_sources_applies_exclusions
+  test_source_cache_persists_after_checkout_cleanup
+  test_source_cache_refreshes_advanced_branch
+  test_source_cache_disabled_uses_direct_clones
   test_sync_locks_preserves_source_pins
   test_sync_locks_refreshes_constraints_at_branch_tip
   test_sync_locks_clones_missing_at_pinned_hash

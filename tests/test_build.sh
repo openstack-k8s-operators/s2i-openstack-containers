@@ -90,6 +90,8 @@ _setup_fixture() {
 set -eu
 case "$1" in
   bud)
+    echo "ARGS $*"
+    echo "HTTP_PROXY=${HTTP_PROXY:-}"
     for i in $(seq 2 $#); do
       if [[ "${!i}" == "-f" ]]; then
         next=$((i + 1))
@@ -121,6 +123,15 @@ case "$1" in
 esac
 FAKE_BUILDAH
   chmod +x "${TEST_DIR}/bin/buildah"
+
+  cat > "${TEST_DIR}/bin/curl" <<'FAKE_CURL'
+#!/usr/bin/env bash
+set -eu
+echo "CURL $*" >> "${CURL_LOG}"
+[[ -z "${FAIL_CACHE_HEALTH:-}" ]]
+FAKE_CURL
+  chmod +x "${TEST_DIR}/bin/curl"
+  export CURL_LOG="${TEST_DIR}/curl.log"
 
   # Logs directory
   mkdir -p "${TEST_DIR}/logs"
@@ -197,6 +208,81 @@ test_refs_rejects_unknown_target() {
   assert "error message present" test "${has_error}" -ge 1
 }
 
+test_build_omits_package_cache_by_default() {
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_no_grep 'pip.conf:/etc/pip.conf' "${TEST_DIR}/build.log"
+}
+
+test_build_uses_opt_in_package_caches() {
+  LOCAL_PACKAGE_CACHE=true \
+    LOCAL_PYPI_INDEX_URL=http://cache.test:3141/index/ \
+    LOCAL_PYPI_TRUSTED_HOST=cache.test \
+    LOCAL_PYPI_HEALTH_URL=http://cache.test:3141/ \
+    LOCAL_RPM_PROXY=http://cache.test:3142 \
+    LOCAL_RPM_HEALTH_URL=http://cache.test:3142 \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'pip.conf:/etc/pip.conf:ro,z' "${TEST_DIR}/build.log"
+  assert_grep 'build-arg HTTP_PROXY=http://cache.test:3142' \
+    "${TEST_DIR}/build.log"
+  assert_no_grep '^HTTP_PROXY=http://cache.test:3142' "${TEST_DIR}/build.log"
+  assert_grep 'index-url = http://cache.test:3141/index/' \
+    "${TEST_DIR}/.tmp/local-package-cache/pip.conf"
+  assert_grep 'trusted-host = cache.test' \
+    "${TEST_DIR}/.tmp/local-package-cache/pip.conf"
+  assert_grep 'http://cache.test:3141/' "${CURL_LOG}" &&
+    assert_grep 'http://cache.test:3142' "${CURL_LOG}"
+}
+
+test_build_fails_when_package_cache_is_unavailable() {
+  local rc=0
+  LOCAL_PACKAGE_CACHE=true FAIL_CACHE_HEALTH=1 \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1 || rc=$?
+
+  assert "non-zero exit" test "${rc}" -ne 0
+  assert_grep 'cache is unavailable' "${TEST_DIR}/build.log"
+  assert_no_grep '^ARGS bud' "${TEST_DIR}/build.log"
+}
+
+test_build_uses_supplied_pip_config() {
+  local pip_config="${TEST_DIR}/ci-pip.conf"
+  printf '[global]\nindex-url = http://mirror.test/pypi/simple\n' \
+    > "${pip_config}"
+
+  BUILD_PIP_CONFIG_FILE="${pip_config}" \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep "${pip_config}:/etc/pip.conf:ro,z" "${TEST_DIR}/build.log"
+}
+
+test_build_scopes_supplied_proxy_to_run_steps() {
+  BUILD_HTTP_PROXY=http://cache.test:3142 \
+    BUILD_HTTPS_PROXY=http://cache.test:3142 \
+    BUILD_NO_PROXY=mirror.test \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'build-arg HTTP_PROXY=http://cache.test:3142' \
+    "${TEST_DIR}/build.log"
+  assert_grep 'build-arg HTTPS_PROXY=http://cache.test:3142' \
+    "${TEST_DIR}/build.log"
+  assert_grep 'build-arg NO_PROXY=mirror.test' "${TEST_DIR}/build.log"
+  assert_no_grep '^HTTP_PROXY=http://cache.test:3142' "${TEST_DIR}/build.log"
+}
+
+test_build_rejects_local_cache_with_pip_config() {
+  local rc=0
+  local pip_config="${TEST_DIR}/ci-pip.conf"
+  printf '[global]\n' > "${pip_config}"
+
+  LOCAL_PACKAGE_CACHE=true BUILD_PIP_CONFIG_FILE="${pip_config}" \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1 || rc=$?
+
+  assert "non-zero exit" test "${rc}" -ne 0
+  assert_grep 'cannot be combined' "${TEST_DIR}/build.log"
+  assert_no_grep '^ARGS bud' "${TEST_DIR}/build.log"
+}
+
 test_parallel_build_produces_logs() {
   _run build-parallel "alpha/one,beta/two" >"${TEST_DIR}/build.log" 2>&1 || true
 
@@ -238,6 +324,12 @@ TESTS=(
   test_single_target_has_no_base
   test_resolve_all_returns_machine_readable_targets
   test_refs_rejects_unknown_target
+  test_build_omits_package_cache_by_default
+  test_build_uses_opt_in_package_caches
+  test_build_fails_when_package_cache_is_unavailable
+  test_build_uses_supplied_pip_config
+  test_build_scopes_supplied_proxy_to_run_steps
+  test_build_rejects_local_cache_with_pip_config
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates
