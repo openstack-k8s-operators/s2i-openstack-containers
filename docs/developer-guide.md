@@ -606,8 +606,11 @@ for a commit shares the same `master-<sha>` tag and consistent OS packages.
 ## Python vulnerability scanning
 
 GitHub Actions runs [OSV-Scanner](https://google.github.io/osv-scanner/) against
-committed `requirements.lock.<stream>` files (the `pip-compile` output that
-images actually install). Unpinned `pythondeps.txt` files are not scanned.
+the unique union of committed `requirements.lock.<stream>` pins (the
+`pip-compile` output that images actually install). Per-service lockfiles share
+most packages; scanning them separately repeats the same CVE once per image.
+Unpinned `pythondeps.txt` files are not scanned. Distinct versions of the same
+package are kept when lockfiles disagree.
 
 - **Pull requests** compare the target branch to the PR and fail only when the
   change **introduces** new vulnerabilities. Existing findings inherited from

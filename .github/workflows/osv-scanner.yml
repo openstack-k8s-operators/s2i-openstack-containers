@@ -1,7 +1,11 @@
 name: OSV-Scanner
 
-# Scan committed pip-compile lockfiles (requirements.lock.<stream>).
-# pythondeps.txt is unpinned input and is not scanned.
+# Scan the unique union of committed pip-compile lockfiles
+# (requirements.lock.<stream>). pythondeps.txt is unpinned and is not scanned.
+#
+# Per-service lockfiles share most pins, so scanning them individually repeats
+# the same CVE once per image. The union job collapses that to unique
+# (name, version) pins, keeping distinct versions when lockfiles disagree.
 #
 # pull_request: fail only on vulnerabilities newly introduced by the PR.
 # schedule / push to main: full inventory uploaded to the Security tab.
@@ -10,22 +14,26 @@ name: OSV-Scanner
 on:
   pull_request:
     paths:
+      - .github/scripts/osv-union-lockfiles.py
       - .github/workflows/osv-scanner.yml
       - containers/**/pythonbuilddeps.txt
       - containers/**/pythondeps.txt
       - containers/**/requirements.lock*
       - containers/**/sources.txt
       - osv-scanner.toml
+      - tests/test_osv_union.sh
   merge_group:
   push:
     branches: [main]
     paths:
+      - .github/scripts/osv-union-lockfiles.py
       - .github/workflows/osv-scanner.yml
       - containers/**/pythonbuilddeps.txt
       - containers/**/pythondeps.txt
       - containers/**/requirements.lock*
       - containers/**/sources.txt
       - osv-scanner.toml
+      - tests/test_osv_union.sh
   schedule:
     - cron: '30 12 * * 1'
   workflow_dispatch:
@@ -34,56 +42,125 @@ permissions:
   contents: read
 
 jobs:
-  lockfiles:
-    name: List Python lockfiles
-    runs-on: ubuntu-latest
-    outputs:
-      scan-args: ${{ steps.list.outputs.scan-args }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - id: list
-        name: Collect requirements.lock.* paths
-        run: |
-          set -euo pipefail
-          mapfile -t files < <(find containers -type f -name 'requirements.lock.*' | sort)
-          if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No requirements.lock.* files found under containers/" >&2
-            exit 1
-          fi
-          {
-            echo 'scan-args<<EOF'
-            echo '--config=osv-scanner.toml'
-            for f in "${files[@]}"; do
-              echo "--lockfile=requirements.txt:${f}"
-            done
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-          echo "Scanning ${#files[@]} lockfile(s):"
-          printf '  %s\n' "${files[@]}"
-
   scan-pr:
     name: PR (new vulnerabilities)
-    needs: lockfiles
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
-    with:
-      scan-args: ${{ needs.lockfiles.outputs.scan-args }}
-      upload-sarif: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      # The union script must survive git checkout of the target branch, which
+      # does not have this file until the workflow merges.
+      - name: Keep union script across checkouts
+        run: cp .github/scripts/osv-union-lockfiles.py /tmp/osv-union-lockfiles.py
+
+      - name: Checkout target branch
+        run: git checkout "${GITHUB_BASE_REF}"
+
+      - name: Union lockfiles (base)
+        run: python3 /tmp/osv-union-lockfiles.py --output osv-union.json
+
+      - name: Scan base
+        uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        continue-on-error: true
+        env:
+          GOTOOLCHAIN: auto
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            --lockfile=osv-scanner:osv-union.json
+
+      - name: Checkout current branch
+        run: git checkout -f "${GITHUB_SHA}"
+
+      - name: Union lockfiles (head)
+        run: python3 /tmp/osv-union-lockfiles.py --output osv-union.json
+
+      - name: Scan head
+        uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        continue-on-error: true
+        env:
+          GOTOOLCHAIN: auto
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            --config=osv-scanner.toml
+            --lockfile=osv-scanner:osv-union.json
+
+      - name: Ensure base results exist
+        run: |
+          if [[ ! -f old-results.json ]]; then
+            echo '{"results":[]}' > old-results.json
+          fi
+
+      - name: Report new vulnerabilities
+        uses: google/osv-scanner-action/osv-reporter-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --old=old-results.json
+            --new=new-results.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+
+      - name: Upload scan JSON
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osv-pr-json-results
+          path: |
+            old-results.json
+            new-results.json
+            osv-union.json
+          retention-days: 5
 
   scan-scheduled:
     name: Inventory (SARIF)
-    needs: lockfiles
     if: github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
-    with:
-      scan-args: ${{ needs.lockfiles.outputs.scan-args }}
-      fail-on-vuln: false
-      upload-sarif: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Union lockfiles
+        run: python3 .github/scripts/osv-union-lockfiles.py --output osv-union.json
+
+      - name: Scan
+        uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        continue-on-error: true
+        env:
+          GOTOOLCHAIN: auto
+        with:
+          scan-args: |-
+            --format=json
+            --output=results.json
+            --config=osv-scanner.toml
+            --lockfile=osv-scanner:osv-union.json
+
+      - name: Report
+        uses: google/osv-scanner-action/osv-reporter-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --new=results.json
+            --gh-annotations=false
+            --fail-on-vuln=false
+
+      - name: Upload SARIF
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          sarif_file: results.sarif
