@@ -16,6 +16,8 @@ packages:
   - iproute
   - iputils
   - libffi-devel
+  - libxml2-devel
+  - libxslt-devel
   - nmap
   - openssl-devel
   - python3
