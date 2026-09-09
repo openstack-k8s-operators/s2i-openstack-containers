@@ -167,6 +167,13 @@
                     enabled: true
               target:
                 kind: OpenStackControlPlane
+      # actually deploy swift and disable RGW
+      cifmw_services_swift_enabled: true
+      cifmw_ceph_daemons_layout:
+        rgw_enabled: false
+        dashboard_enabled: false
+        cephfs_enabled: true
+        ceph_nfs_enabled: false
       cifmw_test_operator_tempest_image: >-
         {{
           s2i_content_provider_registry_ip ~ ':5001/' ~
@@ -179,6 +186,7 @@
         tempest.api.identity.v3.test_tokens.TokensV3Test.test_create_token
         tempest.api.image.v2.test_images.ListImagesTest.test_list_images
         tempest.api.network.test_networks.NetworksTest.test_list_networks
+        tempest.api.object_storage.test_account_services.AccountTest.test_list_containers
         tempest.api.volume.test_volumes_list.VolumesListTestJSON.test_volume_list
         tempest.scenario.test_server_basic_ops.TestServerBasicOps.test_server_basic_ops
         heat_tempest_plugin.tests.functional.test_stack_tags.StackTagTest
