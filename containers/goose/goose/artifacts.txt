@@ -1,0 +1,6 @@
+# Extra HTTP artifacts fetched by build.sh into this directory before buildah.
+# Format: <filename> <sha256> <url>
+openshift-client-linux-amd64.tar.gz 76e22160684a4313daec380437abf54a029bddc3249a824928a84379069840d1 https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.22.9/openshift-client-linux.tar.gz
+openshift-client-linux-arm64.tar.gz 3bb533a5ca471790adbf1d1edfb103c1db6c6b3651183c30a0a8419b7d448f17 https://mirror.openshift.com/pub/openshift-v4/aarch64/clients/ocp/4.22.9/openshift-client-linux.tar.gz
+rust-1.94.1-linux-amd64.tar.xz 294b3d81fa72e62581276290c60c81eb8b58498d333d422ca1dfc432877d0c40 https://static.rust-lang.org/dist/rust-1.94.1-x86_64-unknown-linux-gnu.tar.xz
+rust-1.94.1-linux-arm64.tar.xz bb1267e956ef7887049236d26b37e987da383e190c7d95c80731a302af01b650 https://static.rust-lang.org/dist/rust-1.94.1-aarch64-unknown-linux-gnu.tar.xz

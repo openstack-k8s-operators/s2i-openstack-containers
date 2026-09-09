@@ -1,0 +1,10 @@
+# Rust 1.94.1 is installed from the prefetched toolchain; these are its native build dependencies.
+clang
+cmake
+gcc
+gcc-c++
+git-core
+openssl-devel
+pkgconf-pkg-config
+tar
+xz

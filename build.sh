@@ -7,6 +7,7 @@
 #   STREAM=master ./build.sh build cyborg/cyborg-agent
 #   ./build.sh push all
 #   STREAM=master ./build.sh sync-locks heat
+#   STREAM=master ./build.sh prefetch-cargo goose/goose
 #   ./build.sh list
 #
 # Streams:
@@ -111,6 +112,7 @@
 #                     org.opencontainers.image.revision on every image.
 #                     Zuul sets zuul.newrev; GHA sets github.sha. When unset,
 #                     HEAD of this checkout is used.
+#   CARGO_NET_OFFLINE If true, pass Cargo's offline mode to supported builds.
 #   REGISTRY_AUTH_FILE Authentication file passed explicitly to buildah push.
 #   REGISTRY_CERT_DIR  TLS certificate directory passed explicitly to buildah push.
 #
@@ -140,6 +142,7 @@ SKIP_HASH_UPDATE="${SKIP_HASH_UPDATE:-}"
 REQUIREMENTS_SRC="${REQUIREMENTS_SRC:-}"
 PIP_NO_BINARY="${PIP_NO_BINARY:-}"
 PBR_VERSION_FROM_GIT="${PBR_VERSION_FROM_GIT:-false}"
+CARGO_NET_OFFLINE="${CARGO_NET_OFFLINE:-false}"
 REGISTRY_AUTH_FILE="${REGISTRY_AUTH_FILE:-}"
 REGISTRY_CERT_DIR="${REGISTRY_CERT_DIR:-}"
 if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -396,6 +399,25 @@ ensure_project_constraints() {
   echo "ERROR: No constraints file at ${constraints_file}" >&2
   echo "       Add an 'upper-constraints' entry to containers/${project}/sources.txt for stream '${stream}'," >&2
   echo "       or place the file manually." >&2
+  return 1
+}
+
+# A sources.txt may pin a non-Python source tree without using OpenStack's
+# Python constraints (for example, the Goose CLI).  Such projects do not need
+# constraints or generated lockfiles.
+project_has_constraints() {
+  local project="$1"
+  local stream="$2"
+  local project_sources="${CONTAINERS_DIR}/${project}/sources.txt"
+
+  [[ -f "${project_sources}" ]] || return 1
+
+  local entry_stream name _rest
+  while IFS=' ' read -r entry_stream name _rest; do
+    [[ -z "${entry_stream}" || "${entry_stream}" == \#* ]] && continue
+    [[ "${entry_stream}" == "${stream}" && "${name}" == "upper-constraints" ]] && return 0
+  done < "${project_sources}"
+
   return 1
 }
 
@@ -707,6 +729,46 @@ apply_requirement_exclusions() {
   done
 }
 
+# Return the persistent Cargo cache for an image. Keeping all Cargo state below
+# .tmp makes it easy to discard without adding cache directories to containers/.
+cargo_cache_dir() {
+  local dir_name="$1"
+  echo "${REPO_ROOT}/.tmp/cargo-home/${dir_name}"
+}
+
+# Populate the persistent Cargo cache from the pinned source checkout.
+# Cargo.lock pins its contents.
+prefetch_cargo() {
+  local targets
+  targets=($(resolve_targets "$@"))
+
+  if ! command -v cargo >/dev/null; then
+    echo "ERROR: cargo is required for prefetch-cargo." >&2
+    return 1
+  fi
+
+  local dir_name project source_dir cache_dir
+  for dir_name in "${targets[@]}"; do
+    project="$(project_name "${dir_name}")"
+    if [[ -z "${project}" ]]; then
+      echo "ERROR: prefetch-cargo only supports project image targets." >&2
+      return 1
+    fi
+
+    source_dir="${CONTAINERS_DIR}/${project}/src/${project}"
+    cache_dir="$(cargo_cache_dir "${dir_name}")"
+    ensure_sources_for_stream "${dir_name}" "${STREAM}"
+
+    if [[ ! -f "${source_dir}/Cargo.toml" ]]; then
+      echo "ERROR: ${dir_name} has no Cargo.toml at ${source_dir}." >&2
+      return 1
+    fi
+
+    mkdir -p "${cache_dir}"
+    echo "--- Fetching locked Cargo dependencies for ${dir_name} into ${cache_dir} ---"
+    CARGO_HOME="${cache_dir}" cargo fetch --locked --manifest-path "${source_dir}/Cargo.toml"
+  done
+}
 # Build a single image
 build_image() {
   local dir_name="$1"
@@ -784,20 +846,38 @@ build_image() {
     fi
   fi
 
-  # Prefer lockfile (<CONSTRAINTS_FILE>.<stream>) if available, otherwise fall back to upstream constraints
+  # Rust builds use a persistent host cache mounted only for Containerfile RUN
+  # steps. The Containerfile also works without build.sh, in which case Cargo
+  # creates and populates /cargo inside the build stage normally.
+  local cargo_volume_arg=()
+  if [[ -f "${CONTAINERS_DIR}/${project}/src/${project}/Cargo.toml" ]]; then
+    local cargo_cache
+    cargo_cache="$(cargo_cache_dir "${dir_name}")"
+    mkdir -p "${cargo_cache}"
+    cargo_volume_arg=(--volume "${cargo_cache}:/cargo:rw,z")
+  fi
+
+  # Python projects use a lockfile (or the upstream constraints fallback).
+  # Source-only projects need neither and receive no CONSTRAINTS_FILE argument.
   local build_constraints="${CONSTRAINTS_FILE}.${STREAM}"
   local lock_file="${CONTAINERS_DIR}/${project}/${build_constraints}"
-  if [[ ! -f "${lock_file}" ]]; then
+  local constraint_arg=()
+  if [[ -f "${lock_file}" ]]; then
+    constraint_arg=(--build-arg "CONSTRAINTS_FILE=${build_constraints}")
+  elif project_has_constraints "${project}" "${STREAM}"; then
     ensure_project_constraints "${project}" "${STREAM}"
     build_constraints="${UPSTREAM_CONSTRAINTS}.${STREAM}"
+    constraint_arg=(--build-arg "CONSTRAINTS_FILE=${build_constraints}")
   fi
 
   buildah bud \
     $(image_tag_args "${dir_name}") \
     $(image_label_args) \
-    --build-arg "CONSTRAINTS_FILE=${build_constraints}" \
+    "${constraint_arg[@]}" \
     --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
     ${PIP_NO_BINARY:+--build-arg "PIP_NO_BINARY=${PIP_NO_BINARY}"} \
+    "${cargo_volume_arg[@]}" \
+    --build-arg "CARGO_NET_OFFLINE=${CARGO_NET_OFFLINE}" \
     --build-arg "PBR_VERSION_FROM_GIT=${PBR_VERSION_FROM_GIT}" \
     --build-arg "SOURCE_VERSION_STREAM=${STREAM}" \
     -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
@@ -1382,6 +1462,11 @@ generate_requirements_lock() {
     return
   fi
 
+  if ! project_has_constraints "${project}" "${stream}"; then
+    echo "--- Skipping lockfile for ${project} (source-only project, no Python constraints) ---"
+    return
+  fi
+
   if [[ ! -f "${constraints_file}" ]]; then
     echo "WARNING: No constraints file at ${constraints_file}, skipping lock for ${project}" >&2
     return
@@ -1451,15 +1536,11 @@ generate_locks_for_targets() {
   local stream="${!#}"
   local targets_args=("${@:1:$#-1}")
 
-  if ! command -v pip-compile &>/dev/null; then
-    echo "ERROR: pip-compile not found. Install it with: pip install pip-tools" >&2
-    return 1
-  fi
-
   local targets
   targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _lock_projects_seen
+  local checked_pip_compile=0
   for img in "${targets[@]}"; do
     local project
     project="$(project_name "${img}")"
@@ -1469,6 +1550,16 @@ generate_locks_for_targets() {
     fi
     [[ -n "${_lock_projects_seen[$project]:-}" ]] && continue
     _lock_projects_seen["${project}"]=1
+
+    if [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+       project_has_constraints "${project}" "${stream}" && \
+       [[ ${checked_pip_compile} -eq 0 ]]; then
+      if ! command -v pip-compile &>/dev/null; then
+        echo "ERROR: pip-compile not found. Install it with: pip install pip-tools" >&2
+        return 1
+      fi
+      checked_pip_compile=1
+    fi
 
     generate_requirements_lock "${project}" "${stream}"
   done
@@ -1485,6 +1576,11 @@ generate_buildrequirements_lock() {
 
   if [[ ! -f "${project_dir}/sources.txt" ]]; then
     echo "--- Skipping lockfile for ${project} (pure RPM project, no sources.txt) ---"
+    return
+  fi
+
+  if ! project_has_constraints "${project}" "${stream}"; then
+    echo "--- Skipping build lockfile for ${project} (source-only project, no Python constraints) ---"
     return
   fi
 
@@ -1507,15 +1603,11 @@ generate_buildlocks_for_targets() {
   local stream="${!#}"
   local targets_args=("${@:1:$#-1}")
 
-  if ! command -v pybuild-deps &>/dev/null; then
-    echo "ERROR: pybuild-deps not found. Install it with: pip install pybuild-deps" >&2
-    return 1
-  fi
-
   local targets
   targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _buildlock_projects_seen
+  local checked_pybuild_deps=0
   for img in "${targets[@]}"; do
     local project
     project="$(project_name "${img}")"
@@ -1525,6 +1617,16 @@ generate_buildlocks_for_targets() {
     fi
     [[ -n "${_buildlock_projects_seen[$project]:-}" ]] && continue
     _buildlock_projects_seen["${project}"]=1
+
+    if [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+       project_has_constraints "${project}" "${stream}" && \
+       [[ ${checked_pybuild_deps} -eq 0 ]]; then
+      if ! command -v pybuild-deps &>/dev/null; then
+        echo "ERROR: pybuild-deps not found. Install it with: pip install pybuild-deps" >&2
+        return 1
+      fi
+      checked_pybuild_deps=1
+    fi
 
     generate_buildrequirements_lock "${project}" "${stream}"
   done
@@ -1544,6 +1646,11 @@ regenerate_requirements_lock() {
 
   if [[ ! -f "${project_dir}/sources.txt" ]]; then
     echo "--- Skipping lockfile for ${project} (pure RPM project, no sources.txt) ---"
+    return
+  fi
+
+  if ! project_has_constraints "${project}" "${stream}"; then
+    echo "--- Skipping lockfile for ${project} (source-only project, no Python constraints) ---"
     return
   fi
 
@@ -1609,15 +1716,11 @@ regenerate_locks_for_targets() {
   local stream="${!#}"
   local targets_args=("${@:1:$#-1}")
 
-  if ! command -v pip-compile &>/dev/null; then
-    echo "ERROR: pip-compile not found. Install it with: pip install pip-tools" >&2
-    return 1
-  fi
-
   local targets
   targets=($(resolve_targets "${targets_args[@]}"))
 
   declare -A _relock_projects_seen
+  local checked_pip_compile=0
   for img in "${targets[@]}"; do
     local project
     project="$(project_name "${img}")"
@@ -1627,6 +1730,16 @@ regenerate_locks_for_targets() {
     fi
     [[ -n "${_relock_projects_seen[$project]:-}" ]] && continue
     _relock_projects_seen["${project}"]=1
+
+    if [[ -f "${CONTAINERS_DIR}/${project}/sources.txt" ]] && \
+       project_has_constraints "${project}" "${stream}" && \
+       [[ ${checked_pip_compile} -eq 0 ]]; then
+      if ! command -v pip-compile &>/dev/null; then
+        echo "ERROR: pip-compile not found. Install it with: pip install pip-tools" >&2
+        return 1
+      fi
+      checked_pip_compile=1
+    fi
 
     regenerate_requirements_lock "${project}" "${stream}"
   done
@@ -1749,7 +1862,8 @@ ensure_sources_for_targets() {
       continue
     fi
 
-    if [[ -z "${_ensure_projects_seen[$project]:-}" ]]; then
+    if [[ -z "${_ensure_projects_seen[$project]:-}" ]] && \
+       project_has_constraints "${project}" "${stream}"; then
       _ensure_projects_seen["${project}"]=1
       ensure_project_constraints "${project}" "${stream}"
     fi
@@ -1858,7 +1972,8 @@ sync_locks() {
       continue
     fi
 
-    if [[ -z "${projects_seen[$project]:-}" ]]; then
+    if [[ -z "${projects_seen[$project]:-}" ]] && \
+       project_has_constraints "${project}" "${stream}"; then
       projects_seen["${project}"]=1
       refresh_project_constraints "${project}" "${stream}" || return 1
     fi
@@ -2045,6 +2160,9 @@ case "${ACTION}" in
   sync-locks)
     sync_locks "${TARGETS[@]}" "${STREAM}"
     ;;
+  prefetch-cargo)
+    prefetch_cargo "${TARGETS[@]}"
+    ;;
   update-sources)
     # PBR version calculation needs tags and history. Image builds stay
     # shallow; this command is the lock-refresh path, not the hot path.
@@ -2154,7 +2272,7 @@ case "${ACTION}" in
     list_images
     ;;
   *)
-    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|sync-locks|update-sources|update-lockfiles|install-deps|list} [target ...]"
+    echo "Usage: STREAM=<name> $0 {build|build-parallel|push|refs|resolve|auto-detect|list-sources|sync-locks|prefetch-cargo|update-sources|update-lockfiles|install-deps|list} [target ...]"
     echo ""
     echo "Commands:"
     echo "  build              Build one or more images sequentially"
@@ -2174,6 +2292,7 @@ case "${ACTION}" in
     echo "  sync-locks         Relock current src/ trees against current constraints"
     echo "                     without advancing sources.txt pins. Used by speculative CI"
     echo "                     after staging Zuul checkouts."
+    echo "  prefetch-cargo     Download locked Cargo dependencies into .tmp/cargo-home"
     echo "  update-sources     Fetch latest upstream commits and regenerate lockfiles"
     echo "  update-lockfiles   Regenerate lockfiles without advancing source pins"
     echo "  install-deps       Install system packages required for building (git, buildah,"
@@ -2204,6 +2323,7 @@ case "${ACTION}" in
     echo "  FULL_CLONE        Fetch full git history for pin clones (default: shallow)"
     echo "  REQUIREMENTS_SRC  Directory with upper-constraints.txt for sync-locks"
     echo "  PIP_NO_BINARY     Pass PIP_NO_BINARY to container build (e.g., ':all:')"
+    echo "  CARGO_NET_OFFLINE Set true to require cached Cargo dependencies during the build"
     echo "  PBR_VERSION_FROM_GIT  Let PBR calculate source versions from Git (default: false)"
     echo "  REGISTRY_AUTH_FILE  Registry authentication file for pushes"
     echo "  REGISTRY_CERT_DIR   Registry TLS certificate directory for pushes"

@@ -1,0 +1,8 @@
+ca-certificates
+dbus-libs
+git-core
+libgomp
+libxcb
+openssl-libs
+gzip
+tar

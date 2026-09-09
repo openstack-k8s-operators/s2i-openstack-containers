@@ -1,0 +1,69 @@
+ARG UBI_BASE_IMAGE=registry.access.redhat.com/ubi10/ubi-minimal:latest
+
+# Build Goose from its pinned upstream source. Both stages deliberately use
+# UBI 10 minimal so the Rust binary is linked against a compatible glibc.
+FROM ${UBI_BASE_IMAGE} AS build
+
+COPY src/ /src/
+COPY goose/builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(grep -vE '^(#|$)' /tmp/builddeps.txt | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm -f /tmp/builddeps.txt
+
+# Goose currently requires Rust 1.94.1, newer than the distribution compiler.
+# The toolchain is prefetched and checksum-verified by artifacts.txt so this
+# stage performs no network download.
+ARG TARGETARCH=amd64
+COPY goose/rust-1.94.1-linux-${TARGETARCH}.tar.xz /tmp/rust.tar.xz
+RUN mkdir /tmp/rust && \
+    tar -xJf /tmp/rust.tar.xz -C /tmp/rust --strip-components=1 && \
+    /tmp/rust/install.sh --prefix=/opt/rust --disable-ldconfig && \
+    rm -rf /tmp/rust /tmp/rust.tar.xz
+ENV PATH=/opt/rust/bin:${PATH} \
+    CARGO_HOME=/cargo
+RUN mkdir -p "${CARGO_HOME}"
+ARG CARGO_NET_OFFLINE=false
+ENV CARGO_NET_OFFLINE=${CARGO_NET_OFFLINE} \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse \
+    CARGO_PROFILE_RELEASE_LTO=true \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+    CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+    CARGO_PROFILE_RELEASE_STRIP=true
+
+WORKDIR /src/goose
+RUN cargo build --locked --release --package goose-cli
+
+FROM ${UBI_BASE_IMAGE}
+
+ARG TARGETARCH=amd64
+
+LABEL org.opencontainers.image.title="goose" \
+      org.opencontainers.image.description="Goose CLI for openstack-operator, built from pinned upstream source" \
+      org.opencontainers.image.vendor="AAIF" \
+      org.opencontainers.image.source="https://github.com/aaif-goose/goose"
+
+COPY goose/bindeps.txt /tmp/bindeps.txt
+RUN pkgs=$(grep -vE '^(#|$)' /tmp/bindeps.txt | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm -f /tmp/bindeps.txt
+
+COPY --from=build /src/goose/target/release/goose /usr/local/bin/goose
+
+# Pinned and checksum-verified by artifacts.txt.  Goose can use these clients
+# when working against an OpenShift cluster.
+COPY goose/openshift-client-linux-${TARGETARCH}.tar.gz /tmp/openshift-client.tar.gz
+RUN tar -xzf /tmp/openshift-client.tar.gz -C /usr/local/bin oc kubectl && \
+    rm -f /tmp/openshift-client.tar.gz
+
+# Preserve the working Dockerfile's fixed UID while allowing OpenShift's
+# arbitrary UID (which is normally in GID 0) to write Goose configuration.
+RUN useradd --create-home --uid 1000 --shell /bin/bash goose && \
+    install -d -o 1000 -g 0 -m 0775 /home/goose/.config/goose && \
+    chown -R 1000:0 /home/goose && chmod -R g=u /home/goose
+
+ENV HOME=/home/goose
+WORKDIR /home/goose
+USER 1000
+
+ENTRYPOINT ["/usr/local/bin/goose"]
+CMD ["--help"]
