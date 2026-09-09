@@ -1,0 +1,177 @@
+---
+- name: Prepare package caches for container builds
+  hosts: builder
+  gather_facts: false
+  vars:
+    s2i_ci_package_cache_dir: >-
+      {{ ansible_user_dir }}/.cache/s2i-ci-package-cache
+    s2i_ci_pip_config_file: "{{ s2i_ci_package_cache_dir }}/pip.conf"
+    s2i_ci_squid_config_file: "{{ s2i_ci_package_cache_dir }}/squid.conf"
+    s2i_ci_squid_log_dir: "{{ s2i_ci_package_cache_dir }}/squid"
+    s2i_ci_squid_rewrite_file: >-
+      {{ s2i_ci_package_cache_dir }}/centos-rewrite
+    s2i_ci_mirror_fqdn: >-
+      mirror.{{ nodepool.region | lower }}.{{ nodepool.cloud | lower }}.rdoproject.org
+    s2i_ci_squid_image: >-
+      quay.io/konflux-ci/caching/squid@sha256:4cc97c95e9278b82e71dda59972c23e17575ba4deaa4aec3d1b8aaa2709c8188
+
+  tasks:
+    - name: Check parent-provided pip mirror configuration
+      when: s2i_ci_use_provider_pip_mirror | default(true) | bool
+      ansible.builtin.stat:
+        path: /etc/pip.conf
+      register: s2i_ci_host_pip_config
+
+    - name: Require the parent-provided pip mirror configuration
+      when: s2i_ci_use_provider_pip_mirror | default(true) | bool
+      ansible.builtin.assert:
+        that:
+          - s2i_ci_host_pip_config.stat.isreg | default(false)
+        fail_msg: The RDO base job did not provide /etc/pip.conf
+
+    - name: Require provider mirror coordinates
+      when: >-
+        (s2i_ci_enable_rpm_cache | default(true) | bool) and
+        (s2i_ci_rpm_cache_use_provider_mirror | default(true) | bool)
+      ansible.builtin.assert:
+        that:
+          - nodepool.region is defined
+          - nodepool.region | length > 0
+          - nodepool.cloud is defined
+          - nodepool.cloud | length > 0
+
+    - name: Create job-local package-cache configuration directory
+      when: >-
+        (s2i_ci_use_provider_pip_mirror | default(true) | bool) or
+        (s2i_ci_enable_rpm_cache | default(true) | bool)
+      ansible.builtin.file:
+        path: "{{ s2i_ci_package_cache_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Copy the RDO pip mirror configuration
+      when: s2i_ci_use_provider_pip_mirror | default(true) | bool
+      ansible.builtin.copy:
+        src: /etc/pip.conf
+        dest: "{{ s2i_ci_pip_config_file }}"
+        remote_src: true
+        mode: "0644"
+
+    - name: Create the Squid log directory
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.file:
+        path: "{{ s2i_ci_squid_log_dir }}"
+        state: directory
+        mode: "0777"
+
+    - name: Configure the job-local RPM package cache
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_squid_config_file }}"
+        mode: "0644"
+        content: |
+          acl SSL_ports port 443
+          acl Safe_ports port 80
+          acl Safe_ports port 443
+          acl Safe_ports port 1025-65535
+          http_access deny !Safe_ports
+          http_access deny CONNECT !SSL_ports
+          http_access allow all
+          http_port 3128
+          pid_filename none
+          collapsed_forwarding on
+          connect_retries 5
+          maximum_object_size 1024 MB
+          cache_mem 256 MB
+          cache_dir ufs /var/spool/squid/cache 20480 16 256
+          refresh_pattern -i /repodata/repomd\.xml$ 120 100% 120 override-expire ignore-reload
+          refresh_pattern . 0 20% 4320
+          url_rewrite_program /etc/squid/centos-rewrite
+          url_rewrite_children 4 startup=1 idle=1 concurrency=0
+          coredump_dir /var/spool/squid
+          access_log stdio:/var/log/squid/access.log
+          cache_log /var/log/squid/cache.log
+
+    - name: Configure the CentOS mirror rewrite
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_squid_rewrite_file }}"
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          while read -r url rest; do
+            case "${url}" in
+              http://mirror.stream.centos.org/*)
+                path=${url#http://mirror.stream.centos.org/}
+          {% if s2i_ci_rpm_cache_use_provider_mirror | default(true) | bool %}
+                printf 'http://{{ s2i_ci_mirror_fqdn }}/centos-stream/%s\n' "${path}"
+          {% else %}
+                printf 'https://mirror.stream.centos.org/%s\n' "${path}"
+          {% endif %}
+                ;;
+              *)
+                printf '\n'
+                ;;
+            esac
+          done
+
+    - name: Remove a stale RPM package-cache container
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.command:
+        argv: [podman, rm, --force, --volumes, s2i_squid]
+      register: s2i_ci_removed_package_cache
+      changed_when: s2i_ci_removed_package_cache.rc == 0
+      failed_when: false
+
+    - name: Start the job-local RPM package cache
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.command:
+        argv:
+          - podman
+          - run
+          - --detach
+          - --name
+          - s2i_squid
+          - --entrypoint
+          - /bin/sh
+          - --publish
+          - 0.0.0.0:3142:3128
+          - --volume
+          - >-
+            {{ s2i_ci_squid_config_file }}:/etc/squid/squid.conf:ro,Z
+          - --volume
+          - >-
+            {{ s2i_ci_squid_rewrite_file }}:/etc/squid/centos-rewrite:ro,Z
+          - --volume
+          - "{{ s2i_ci_squid_log_dir }}:/var/log/squid:Z"
+          - --volume
+          - /var/spool/squid
+          - "{{ s2i_ci_squid_image }}"
+          - -c
+          - >-
+            mkdir -p /var/spool/squid/cache;
+            squid -z -f /etc/squid/squid.conf;
+            exec squid -NYCd 1 -f /etc/squid/squid.conf
+      register: s2i_ci_started_package_cache
+      changed_when: s2i_ci_started_package_cache.rc == 0
+
+    - name: Wait for the RPM package cache
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --silent
+          - --show-error
+          - --max-time
+          - "15"
+          - --proxy
+          - http://127.0.0.1:3142
+          - --output
+          - /dev/null
+          - http://mirror.stream.centos.org/10-stream/AppStream/x86_64/os/repodata/repomd.xml
+      register: s2i_ci_package_cache_health
+      changed_when: false
+      until: s2i_ci_package_cache_health.rc == 0
+      retries: 12
+      delay: 5

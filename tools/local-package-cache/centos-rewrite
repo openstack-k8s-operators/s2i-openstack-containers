@@ -1,0 +1,13 @@
+#!/bin/sh
+
+while read -r url rest; do
+  case "${url}" in
+    http://mirror.stream.centos.org/*)
+      path=${url#http://mirror.stream.centos.org/}
+      printf 'https://mirror.stream.centos.org/%s\n' "${path}"
+      ;;
+    *)
+      printf '\n'
+      ;;
+  esac
+done

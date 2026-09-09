@@ -5,6 +5,8 @@
   vars:
     s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
     s2i_ci_log_dir: "{{ s2i_ci_output_dir }}/logs/container-build"
+    s2i_ci_squid_log_dir: >-
+      {{ ansible_user_dir }}/.cache/s2i-ci-package-cache/squid
 
   tasks:
     - name: Ensure the container build log directory exists
@@ -13,6 +15,21 @@
         state: directory
         mode: "0755"
       failed_when: false
+
+    - name: Stage Squid file logs
+      when: s2i_ci_enable_rpm_cache | default(true) | bool
+      block:
+        - name: Run the trusted output staging role
+          ansible.builtin.include_role:
+            name: stage-output
+          vars:
+            stage_dir: "{{ s2i_ci_output_dir }}"
+            zuul_copy_output:
+              "{{ s2i_ci_squid_log_dir }}": logs
+      rescue:
+        - name: Report non-fatal Squid log staging failure
+          ansible.builtin.debug:
+            msg: Squid file log staging failed; cleanup will continue
 
     - name: Collect registry and build container logs
       block:
@@ -24,7 +41,7 @@
       rescue:
         - name: Report non-fatal Zuul container log collection failure
           ansible.builtin.debug:
-            msg: Container log collection failed; registry cleanup will continue
+            msg: Container log collection failed; cache cleanup will continue
 
 - name: Remove exact workflow images
   ansible.builtin.import_playbook: ../shared/cleanup-images.yaml
@@ -43,6 +60,20 @@
         argv: [podman, rm, --force, s2i_registry]
       register: s2i_ci_removed_registry
       changed_when: s2i_ci_removed_registry.stdout | length > 0
+      failed_when: false
+
+    - name: Remove the RPM package-cache container and anonymous volumes
+      ansible.builtin.command:
+        argv: [podman, rm, --force, --volumes, s2i_squid]
+      register: s2i_ci_removed_package_cache
+      changed_when: s2i_ci_removed_package_cache.rc == 0
+      failed_when: false
+
+    - name: Remove the job-local package-cache configuration
+      become: true
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/.cache/s2i-ci-package-cache"
+        state: absent
       failed_when: false
 
     - name: Remove persisted registry connection data

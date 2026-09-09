@@ -1,0 +1,38 @@
+---
+# Optional developer-only package caches. build.sh consumes these services when
+# LOCAL_PACKAGE_CACHE=true, but deliberately does not manage their lifecycle.
+services:
+  proxpi:
+    image: >-
+      docker.io/epicwink/proxpi:1.3.0@sha256:0748b92ddf75405d9d83fbd1705517f951e67e0540af86e0a9bf4de388ba86c0
+    environment:
+      PROXPI_CACHE_DIR: /var/cache/proxpi
+      PROXPI_CACHE_SIZE: "5368709120"
+      PROXPI_CONNECT_TIMEOUT: "5"
+      PROXPI_READ_TIMEOUT: "60"
+    ports:
+      - "${LOCAL_CACHE_BIND_ADDRESS:-127.0.0.1}:3141:5000"
+    volumes:
+      - proxpi-data:/var/cache/proxpi
+    restart: unless-stopped
+
+  squid:
+    image: >-
+      quay.io/konflux-ci/caching/squid@sha256:4cc97c95e9278b82e71dda59972c23e17575ba4deaa4aec3d1b8aaa2709c8188
+    entrypoint: [/bin/sh, -c]
+    command:
+      - >-
+        mkdir -p /var/spool/squid/cache;
+        squid -z -f /etc/squid/squid.conf;
+        exec squid -NYCd 1 -f /etc/squid/squid.conf
+    ports:
+      - "${LOCAL_CACHE_BIND_ADDRESS:-127.0.0.1}:3142:3128"
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro,Z
+      - ./centos-rewrite:/etc/squid/centos-rewrite:ro,Z
+      - squid-data:/var/spool/squid:U
+    restart: unless-stopped
+
+volumes:
+  proxpi-data:
+  squid-data:
