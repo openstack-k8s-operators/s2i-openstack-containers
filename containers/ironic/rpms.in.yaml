@@ -1,6 +1,6 @@
 contentOrigin:
   repofiles:
-    - ./rpms.repo
+    - ../../rpms.repo
 context:
   bare: true
 
