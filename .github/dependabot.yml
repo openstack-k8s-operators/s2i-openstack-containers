@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keep GitHub Action SHA pins current. The pip ecosystem is omitted:
+  # Python versions are pinned by OpenStack upper-constraints and refreshed
+  # by the update-sources workflow, not by Dependabot.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

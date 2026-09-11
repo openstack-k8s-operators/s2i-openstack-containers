@@ -7,12 +7,14 @@ on:
       - tox.ini
       - tests/**
       - hack/**
+      - .github/scripts/**
   push:
     paths:
       - build.sh
       - tox.ini
       - tests/**
       - hack/**
+      - .github/scripts/**
   workflow_dispatch:
 
 jobs:
