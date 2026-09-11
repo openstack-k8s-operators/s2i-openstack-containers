@@ -23,7 +23,7 @@ eventlet==0.41.2
 fasteners==0.20
 fixtures==4.3.2
 futurist==3.5.0
-gabbi==4.2.0
+gabbi==4.1.1
 gnocchiclient==7.2.0
 greenlet==3.5.5
 h11==0.16.0
@@ -40,6 +40,8 @@ jinja2==3.1.6
 jmespath==1.1.0
 jsonpatch==1.33
 jsonpath-ng==1.8.0
+jsonpath-rw==1.4.0
+jsonpath-rw-ext==1.2.2
 jsonpointer==3.1.1
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
@@ -88,6 +90,7 @@ pbr==7.0.3
 pecan==1.8.0
 platformdirs==4.11.3
 pluggy==1.6.0
+ply==3.11
 prettytable==3.18.0
 prometheus-client==0.26.0
 prompt-toolkit==3.0.53

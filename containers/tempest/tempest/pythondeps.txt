@@ -7,3 +7,5 @@ os-testr
 # run_tempest.sh to generate JUnit XML reports); python-subunit does not
 # pull this in automatically.
 junitxml
+# telemetry-tempest-plugin deps
+gabbi==4.1.1
