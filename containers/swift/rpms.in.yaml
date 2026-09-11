@@ -36,3 +36,4 @@ packages:
   - python3-wheel
   - rsync
   - rust
+  - tar
