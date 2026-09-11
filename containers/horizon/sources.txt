@@ -1,10 +1,10 @@
 # <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>  version
 master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa -
-master horizon https://opendev.org/openstack/horizon.git master 93904adfdeba39dba8d2d8f9c2f2ec486ad22b22 26.0.1.dev74
-master heat-dashboard https://opendev.org/openstack/heat-dashboard.git master fb05584a24bddc73857a066ac00ebc656e15040b 15.1.0.dev15
+master horizon https://opendev.org/openstack/horizon.git master 8e64be48cddfaee3201ea4414ec14faf5dff3fff 26.0.1.dev78
+master heat-dashboard https://opendev.org/openstack/heat-dashboard.git master 5d39d155205af5a4b1d55eaad48c1224f87eb360 16.0.0.0rc2.dev1
 master ironic-ui https://opendev.org/openstack/ironic-ui.git master bce74adf2fd0969821fe21f3b31cfffe5214b59f 6.9.0
 master manila-ui https://opendev.org/openstack/manila-ui.git master c1f5b0496b9f32e6431fe4ea96af70b8f7b52ab4 15.1.0.dev20
-master octavia-dashboard https://opendev.org/openstack/octavia-dashboard.git master 94ef322b1aa2563f56c83d9db5f7a240f6fd151e 17.1.0.dev48
-master designate-dashboard https://opendev.org/openstack/designate-dashboard.git master 98a0a76eac11e94e2d6202f417ca8a616f259bac 23.0.0.0rc1
+master octavia-dashboard https://opendev.org/openstack/octavia-dashboard.git master 94ef322b1aa2563f56c83d9db5f7a240f6fd151e 18.0.0.0rc1
+master designate-dashboard https://opendev.org/openstack/designate-dashboard.git master 196a1281fed1d8e737f41667b1fbdf30f8754a27 23.1.0.dev3
 master watcher-dashboard https://opendev.org/openstack/watcher-dashboard.git master 25960ca8ef73e7cd0339fcb2f193c1ab04f0f8cc 16.1.0.dev1
 master cloudkitty-dashboard https://opendev.org/openstack/cloudkitty-dashboard.git master 6a48bceec02767eae6949c335da68b88b6d6cd7a 22.1.0.dev32
