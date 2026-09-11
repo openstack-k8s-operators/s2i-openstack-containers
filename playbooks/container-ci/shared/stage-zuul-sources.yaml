@@ -1,23 +1,28 @@
 ---
 # Stage Zuul-checked-out source repositories into container build contexts.
 #
-# For speculative builds, Zuul checks out patched source repos into the
-# workspace.  This task file copies those checkouts into the container
-# src/ directories so build.sh uses the patched code instead of cloning
-# from pinned hashes.
+# Zuul clones upstream repos into the workspace. This task file copies those
+# checkouts into the container src/ directories so build.sh uses them instead
+# of cloning from the network. When s2i_ci_prefer_shas is true (s2i-repo
+# jobs only), staged repos are checked out at the sources.txt pin unless
+# the project has a speculative change in the Zuul queue. Never set
+# prefer_shas on speculative OpenDev builds.
 #
 # It delegates all sources.txt parsing to `build.sh list-sources`, keeping
 # build.sh as the single source of truth for the source manifest format.
 #
-# Required facts (set by shared/run.yaml before including this):
+# Required facts (set by the caller before including this):
 #   s2i_ci_container_repo  - path to the s2i-openstack-containers checkout
 #   s2i_ci_stream          - stream name (e.g. "master")
 #   s2i_ci_workspace_root  - Zuul workspace root
 #   s2i_ci_resolved_images - register from `build.sh resolve`
+#
+# Optional:
+#   s2i_ci_prefer_shas     - checkout sources.txt SHAs after staging (default false)
 
 # list-sources emits URL paths (`openstack/tempest`). zuul.projects is
 # keyed by canonical names (`opendev.org/openstack/tempest`). Map both
-# forms, plus Zuul `project.name`, so speculative checkouts stage.
+# forms, plus Zuul `project.name`, so checkouts stage reliably.
 - name: Map sources.txt project paths to Zuul canonical names
   ansible.builtin.set_fact:
     s2i_ci_zuul_name_map: {}
@@ -39,7 +44,35 @@
     s2i_ci_zuul_project_names: "{{ s2i_ci_zuul_name_map | list }}"
     s2i_ci_staged_projects: []
 
-- name: Resolve Zuul requirements checkout for speculative constraints
+# Match list-sources paths (openstack/tempest) and Zuul canonical names
+# (opendev.org/openstack/tempest) so Depends-On / speculative OpenDev
+# changes skip the sources.txt pin checkout.
+- name: Collect project paths with speculative Zuul changes
+  ansible.builtin.set_fact:
+    s2i_ci_speculative_projects: >-
+      {{
+        (
+          (
+            (zuul['items'] | default([]))
+            | selectattr('project', 'defined')
+            | map(attribute='project')
+            | map(attribute='name', default='')
+            | select('ne', '')
+            | list
+          )
+          +
+          (
+            (zuul['items'] | default([]))
+            | selectattr('project', 'defined')
+            | map(attribute='project')
+            | map(attribute='canonical_name', default='')
+            | select('ne', '')
+            | list
+          )
+        ) | unique | list
+      }}
+
+- name: Resolve Zuul requirements checkout when available
   when: "'openstack/requirements' in s2i_ci_zuul_name_map"
   ansible.builtin.set_fact:
     s2i_ci_requirements_src: >-

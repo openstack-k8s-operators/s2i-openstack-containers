@@ -191,7 +191,7 @@
                'target': s2i_ci_target_expression
              } | to_nice_json }}
 
-    - name: Stage Zuul source checkouts for speculative builds
+    - name: Stage Zuul source checkouts before build
       ansible.builtin.include_tasks: stage-zuul-sources.yaml
 
     - name: Relock staged sources against current constraints
