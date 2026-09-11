@@ -1,3 +1,6 @@
 # TLS termination
 httpd
 mod_ssl
+# swift-operator runs its ring rebalance job from this image, and swift-ring-tool
+# tars the ring builder files in and out of the ring ConfigMap
+tar
