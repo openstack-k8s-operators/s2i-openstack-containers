@@ -133,10 +133,10 @@ statsd==4.0.1
 stevedore==5.9.0 ; python_version >= "3.12"
 testresources==2.1.2
 testscenarios==0.6.2
-testtools==2.9.1
+testtools==2.7.2
 typing-extensions==4.15.0
 tzdata==2026.2
-urllib3==2.7.0
+urllib3==1.26.12
 vine==5.1.0
 warlock==2.1.0
 wcwidth==0.8.1

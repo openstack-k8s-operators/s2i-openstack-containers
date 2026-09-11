@@ -1,5 +1,0 @@
-# TODO: remove the wa when OSPRH-36305 is solved.
-# (urllib3 2.x, testtools 2.8+, conftest git metadata optional).
-import tobiko_urllib3_compat
-import tobiko_testtools_compat
-import tobiko_skip_git_metadata
