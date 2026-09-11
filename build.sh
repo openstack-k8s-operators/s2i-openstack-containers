@@ -1411,7 +1411,7 @@ generate_rpms_in_yaml() {
     cat <<'HEADER'
 contentOrigin:
   repofiles:
-    - ./rpms.repo
+    - ../../rpms.repo
 context:
   bare: true
 

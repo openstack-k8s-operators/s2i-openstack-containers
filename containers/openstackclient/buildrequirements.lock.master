@@ -1,4 +1,4 @@
-build==1.6.0
+build==1.6.1
 calver==2025.10.20
 cython==3.3.0
 flit-core==3.12.0
