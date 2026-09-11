@@ -16,7 +16,6 @@ SELENIUM_PAGE_TIMEOUT=240
 SELENIUM_IMPLICIT_WAIT=30
 HORIZONTEST_DEBUG_MODE="${HORIZONTEST_DEBUG_MODE:-false}"
 EXTRA_FLAG="${EXTRA_FLAG:-"not pagination and not federation"}"
-PROJECT_NAME_XPATH="${PROJECT_NAME_XPATH:-"//span[@class='rcueicon rcueicon-folder-open']/ancestor::li"}"
 IMAGE_FILE_NAME=cirros-0.6.2-x86_64-disk
 IMAGE_FILE_NAME_WITH_SIZE="cirros-0.6.2-x86_64-disk (20.4 MB)"
 IMAGE_FILE="/usr/local/share/${IMAGE_FILE_NAME}"
@@ -24,19 +23,7 @@ if [[ ! -f "${IMAGE_FILE}" ]]; then
     IMAGE_FILE="/var/lib/horizontest/${IMAGE_FILE_NAME}"
 fi
 SUBNET_NAME=public_subnet
-HELP_SEQUENCE=".//*[normalize-space()='Help']"
-HELP_URL="https://docs.redhat.com/en/documentation/red_hat_openstack_services_on_openshift/"
-TEST_MATERIAL_THEME=False
-USER_NAME_XPATH="//span[@class='rcueicon rcueicon-user']/ancestor::li"
-BROWSE_LEFT_PANEL_MAIN="Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Project,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Admin,Identity,Identity,Identity,Identity,Identity"
-BROWSE_LEFT_PANEL_SEC="Project,None,None,None,None,None,Volumes,Volumes,Network,Network,Network,Network,Network,Network,Network,Object Store,None,Compute,Compute,Compute,Compute,Compute,Volume,Volume,Volume,Volume,Network,Network,Network,Network,Network,System,System,System,None,None,None,None,None"
-BLP_SEC_LINE_XPATH=".//*[@class='navbar primary persistent-secondary']"
-BLP_SEC_LINE_REQ_BTN=".//*[@class='navbar primary persistent-secondary']//a[normalize-space()='{sec_panel}']//ancestor::li"
-BLP_SIDEBAR_XPATH=".//*[@class='navbar primary persistent-secondary']//a[normalize-space()='{sec_panel}']//ancestor::li//*[@class='dropdown-menu']"
-PROJECT_TEXT_XPATH="${PROJECT_TEXT_XPATH:-".//span[@class='rcueicon rcueicon-folder-open']/ancestor::li"}"
-SERVICES_REGION_NAME_XPATH=".//li[@id='services_region_switcher']/a"
-SERVICES_REGION_BTN_TEXT_PATTERN="Managing Region {region}"
-SERVICES_REGION_DROPDOWN_XPATH=".//li[@id='services_region_switcher']"
+HELP_URL="${HELP_URL:-https://docs.openstack.org/}"
 
 # assert mandatory variables have been set
 if [[ -z "${ADMIN_USERNAME}" ]]; then
@@ -182,19 +169,6 @@ crudini --set horizon.conf selenium explicit_wait ${SELENIUM_EXPLICIT_WAIT}
 crudini --set horizon.conf selenium page_timeout ${SELENIUM_PAGE_TIMEOUT}
 crudini --set horizon.conf selenium implicit_wait ${SELENIUM_IMPLICIT_WAIT}
 crudini --set horizon.conf network subnet_name ${SUBNET_NAME}
-crudini --set horizon.conf theme project_name_xpath "${PROJECT_NAME_XPATH}"
-crudini --set horizon.conf theme help_sequence "${HELP_SEQUENCE}"
-crudini --set horizon.conf theme test_material_theme "${TEST_MATERIAL_THEME}"
-crudini --set horizon.conf theme user_name_xpath "${USER_NAME_XPATH}"
-crudini --set horizon.conf theme browse_left_panel_main "${BROWSE_LEFT_PANEL_MAIN}"
-crudini --set horizon.conf theme browse_left_panel_sec "${BROWSE_LEFT_PANEL_SEC}"
-crudini --set horizon.conf theme b_l_p_sec_line_xpath "${BLP_SEC_LINE_XPATH}"
-crudini --set horizon.conf theme b_l_p_sec_line_req_btn "${BLP_SEC_LINE_REQ_BTN}"
-crudini --set horizon.conf theme b_l_p_sidebar_xpath "${BLP_SIDEBAR_XPATH}"
-crudini --set horizon.conf theme project_text_xpath "${PROJECT_TEXT_XPATH}"
-crudini --set horizon.conf services_regions region_name_xpath "${SERVICES_REGION_NAME_XPATH}"
-crudini --set horizon.conf services_regions region_btn_text_pattern "${SERVICES_REGION_BTN_TEXT_PATTERN}"
-crudini --set horizon.conf services_regions region_dropdown_xpath "${SERVICES_REGION_DROPDOWN_XPATH}"
 popd
 
 # run horizon selenium tests
