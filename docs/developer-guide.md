@@ -72,6 +72,23 @@ are reachable.
 
 When running `build` or `update-sources`, `build.sh` reads `sources.txt`
 at both levels and clones any repo that doesn't already exist in `src/`.
+Pin clones fetch only the recorded commit (`git fetch --depth 1`). Unique
+destinations are cloned in parallel, capped by `PARALLEL` (the same limit
+as `build-parallel`). Set `FULL_CLONE` to fetch full history instead. If
+a server rejects a SHA want, the clone falls back to full history.
+
+`update-sources` resolves branch tips with `git ls-remote` instead of
+cloning to discover the SHA. If the pin already matches the tip, the hash
+in `sources.txt` is left unchanged. Missing service checkouts are still
+cloned at that SHA so lock generation can read the tree. Those checkouts
+use full git history so PBR can see tags when recording the version field.
+`upper-constraints.txt` is fetched as a single file (blobless fetch, then a
+shallow pin, then a full clone fallback) and is never cloned into `src/`.
+
+The sixth `sources.txt` field (package version) is ignored by clone and
+fetch paths. `update-sources` still records it so container builds can set
+`PBR_VERSION` on shallow pin clones that have no git history for `git describe`.
+
 These auto-cloned repos are tracked and **removed automatically on exit**
 (via an EXIT trap), so `src/` directories stay clean in the repo (only a
 `.gitkeep` is committed).
@@ -586,9 +603,10 @@ Two-stage build:
 | `CONSTRAINTS_FILE` | `requirements.lock` | Lockfile base name used during builds |
 | `BUILD_CONSTRAINTS_FILE` | `buildrequirements.lock` | Build-requirements lockfile base name |
 | `DEFAULT_STREAM` | `master` | Stream for which un-suffixed symlinks are created |
-| `PARALLEL` | `nproc` | Max concurrent builds for `build-parallel` |
+| `PARALLEL` | `nproc` | Max concurrent builds for `build-parallel` and unique source clones |
 | `BUILD_LOGS_DIR` | *(tmpdir, deleted)* | Directory to persist `build-parallel` logs |
 | `SKIP_HASH_UPDATE` | *(unset)* | If set, `update-sources` skips updating pinned hashes and clones repos at existing pins; lockfiles are still regenerated |
+| `FULL_CLONE` | *(unset)* | If set, pin clones fetch full git history instead of `--depth 1` |
 | `REQUIREMENTS_SRC` | *(unset)* | Directory containing `upper-constraints.txt`. When set, `sync-locks` copies that file instead of fetching the stream branch tip |
 | `PIP_NO_BINARY` | *(unset)* | If set, passed as `--build-arg` to the container build so pip builds packages from source (e.g., `:all:`) |
 | `PBR_VERSION_FROM_GIT` | `false` | If true, let PBR calculate source versions from Git instead of using `sources.txt`; intended for development checkouts |
