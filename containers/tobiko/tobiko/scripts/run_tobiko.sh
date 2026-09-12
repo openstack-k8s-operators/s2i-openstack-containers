@@ -15,6 +15,16 @@ if [[ -n "${TOBIKO_PATCH_REFSPEC}" ]]; then
     echo "WARNING: TOBIKO_PATCH_REFSPEC is ignored; rebuild the image." >&2
 fi
 
+SOURCE_BUILT_PKGS="/source-built-packages.txt"
+if [[ -r "${SOURCE_BUILT_PKGS}" ]]; then
+    IFS=, read -r _ _tobiko_commit _tobiko_release \
+        < <(grep -m1 '^tobiko,' "${SOURCE_BUILT_PKGS}")
+    [[ -n "${_tobiko_commit}" && "${_tobiko_commit}" != unknown ]] && \
+        export TOBIKO_GIT_COMMIT="${_tobiko_commit}"
+    [[ -n "${_tobiko_release}" && "${_tobiko_release}" != unknown ]] && \
+        export TOBIKO_GIT_RELEASE="${_tobiko_release}"
+fi
+
 [[ -z "${TOBIKO_TESTENV}" ]] && echo "TOBIKO_TESTENV not set" && exit 1
 
 TOBIKO_DIR="${TOBIKO_DIR:-/var/lib/tobiko}"
