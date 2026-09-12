@@ -207,6 +207,13 @@ cinder and manila backends as a list to respectively:
 - `s2i_cinder_volume_backends`
 - `s2i_manila_share_backends`
 
+`s2i-test-base` emits `cinderVolumeImages` / `manilaShareImages` from
+the provider tag only when `cinder/cinder-volume` or
+`manila/manila-share` is in `s2i_ci_content.selected_images`. Include
+those targets in the child provider's `s2i_ci_images` list if the job
+should run s2i volume/share images. Otherwise volume and share pods
+keep payload defaults.
+
 ### Job skeleton
 
 Place both jobs in the operator's `zuul.d/jobs.yaml` (or `.zuul.yaml` if

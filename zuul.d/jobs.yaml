@@ -21,7 +21,9 @@
       Build and publish OpenStack service container images for dependent
       jobs. This repository builds all maintained images by default;
       child jobs can select a subset, use auto-detect for speculative
-      rebuilds, and add related required projects.
+      rebuilds, or set ``s2i_ci_images: changes`` to rebuild only images
+      touched by the change. This repo's github-check pipeline uses
+      ``changes``.
     timeout: 7200
     nodeset: s2i-openstack-containers-image-builder
     required-projects:
@@ -71,8 +73,10 @@
       # List of images to be skipped (for special cases).
       s2i_ci_skip_os_custom_images: []
       # Combine the scalar OpenStackVersion fields from the s2i provider,
-      # plus the additional mapping (special cases like cinder-volume
-      # and manila-share)
+      # plus backend maps for cinder-volume / manila-share when those
+      # images were actually published. Backend lists alone must not
+      # synthesize a provider tag that is not in the registry (github-check
+      # ``changes`` builds a subset).
       s2i_cinder_volume_backends: []
       s2i_manila_share_backends: []
       cifmw_set_containers_images: >-
@@ -91,7 +95,11 @@
                 s2i_ci_content.tag
               ),
               'backends': s2i_cinder_volume_backends
-            }] if s2i_cinder_volume_backends | default([]) else []
+            }] if (
+              s2i_cinder_volume_backends | default([])
+              and 'cinder/cinder-volume' in
+                (s2i_ci_content.selected_images | default([]))
+            ) else []
           ) + (
             [{
               'name': 'manilaShareImages',
@@ -102,7 +110,11 @@
                 s2i_ci_content.tag
               ),
               'backends': s2i_manila_share_backends
-            }] if s2i_manila_share_backends | default([]) else []
+            }] if (
+              s2i_manila_share_backends | default([])
+              and 'manila/manila-share' in
+                (s2i_ci_content.selected_images | default([]))
+            ) else []
           )
         }}
 
@@ -132,7 +144,10 @@
       provider applied to OpenStackVersion during edpm_prepare, then runs
       a tempest smoke suite. Images without an OpenStackVersion mapping
       (and services s2i does not build, such as nova-compute) keep the
-      operator defaults. Keys in s2i_ci_skip_os_custom_images are also
+      operator defaults. Unbuilt cinder-volume / manila-share backend
+      maps and the tempest image also stay on payload defaults so a
+      ``changes`` subset cannot inject provider tags that were never
+      published. Keys in s2i_ci_skip_os_custom_images are also
       omitted so preserve_unlisted keeps payload defaults until those
       operators adopt eventless master images.
 
@@ -142,6 +157,8 @@
       and on ``s2i-openstack-container-consumer-smoke`` so a broken
       publish/mapping contract skips this CRC/EDPM job.
     vars:
+      # HCI Ceph backend CR names. Maps are emitted only when the
+      # matching image is in s2i_ci_content.selected_images.
       s2i_cinder_volume_backends: ['volume1']
       s2i_manila_share_backends: ['share1']
       # Override content_provider_registry_ip because there is a single
@@ -174,12 +191,29 @@
         dashboard_enabled: false
         cephfs_enabled: true
         ceph_nfs_enabled: false
+      # Use the published s2i tempest image when it was built. Otherwise
+      # fall back to cifmw_default_* group_vars (available at bootstrap).
+      # Do not use cifmw_test_operator_default_* — those are role defaults
+      # and are undefined when cifmw_setup dumps ci_framework_params.
       cifmw_test_operator_tempest_image: >-
         {{
-          s2i_content_provider_registry_ip ~ ':5001/' ~
-          s2i_ci_content.namespace ~ '/openstack-tempest'
+          (
+            s2i_content_provider_registry_ip ~ ':5001/' ~
+            s2i_ci_content.namespace ~ '/openstack-tempest'
+          )
+          if ('tempest/tempest' in (s2i_ci_content.selected_images | default([])))
+          else (
+            cifmw_default_registry ~ '/' ~
+            cifmw_default_container_image_namespace ~ '/' ~
+            'openstack-tempest-all'
+          )
         }}
-      cifmw_test_operator_tempest_image_tag: "{{ s2i_ci_content.tag }}"
+      cifmw_test_operator_tempest_image_tag: >-
+        {{
+          s2i_ci_content.tag
+          if ('tempest/tempest' in (s2i_ci_content.selected_images | default([])))
+          else cifmw_default_container_image_tag
+        }}
       cifmw_test_operator_tempest_include_list: |
         tempest.api.compute.servers.test_create_server.ServersTestJSON.test_list_servers
         tempest.api.compute.servers.test_server_actions.ServerActionsTestJSON.test_reboot_server_hard
