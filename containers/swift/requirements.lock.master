@@ -52,6 +52,7 @@ python-binary-memcached==0.32.0
 python-dateutil==2.9.0.post0
 python-keystoneclient==6.0.0
 python-memcached==1.62
+python-swiftclient==4.11.0
 pyyaml==6.0.3
 redis==8.1.0
 repoze-lru==0.8
