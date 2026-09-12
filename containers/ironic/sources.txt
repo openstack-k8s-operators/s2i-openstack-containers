@@ -1,2 +1,2 @@
 master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa -
-master ironic https://opendev.org/openstack/ironic.git master 059613bb56a847ec0211c1e90a4e23c2b9cb4ad2 38.0.1.dev123
+master ironic https://opendev.org/openstack/ironic.git master de09a8bbb315d83dbb425c75b973ff402e32566b 38.0.1.dev125
