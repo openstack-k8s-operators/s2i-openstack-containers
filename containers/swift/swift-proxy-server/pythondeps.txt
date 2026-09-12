@@ -7,3 +7,8 @@ ceilometermiddleware
 # swift-dispersion-populate/-report need swiftclient for any auth_version != 1.0,
 # and swift-operator's dispersion.conf sets auth_version = 3.0
 python-swiftclient
+# Barbican-backed at-rest encryption. swift declares castellan only in its
+# "kms_keymaster" extras, so building swift from source does not pull it in,
+# but swift-operator adds the kms_keymaster filter to the proxy pipeline
+# whenever SwiftProxy.encryptionEnabled is set.
+castellan
