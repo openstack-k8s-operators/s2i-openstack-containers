@@ -4,3 +4,6 @@ keystonemiddleware
 oslo.cache[dogpile]
 # Telemetry middleware for Ceilometer integration
 ceilometermiddleware
+# swift-dispersion-populate/-report need swiftclient for any auth_version != 1.0,
+# and swift-operator's dispersion.conf sets auth_version = 3.0
+python-swiftclient
