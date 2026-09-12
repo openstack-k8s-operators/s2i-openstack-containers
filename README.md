@@ -24,6 +24,7 @@ The repository currently builds:
 - `openstack-designate-central`;
 - `openstack-designate-worker`;
 - `openstack-glance-api`;
+- `openstack-goose`;
 - `openstack-heat-api`;
 - `openstack-heat-engine`;
 - `openstack-horizon`;

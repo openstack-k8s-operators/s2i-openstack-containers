@@ -210,6 +210,43 @@ test_build_passes_source_version_arguments() {
 
   assert_grep 'PBR_VERSION_FROM_GIT=false' "${TEST_DIR}/build.log"
   assert_grep 'SOURCE_VERSION_STREAM=master' "${TEST_DIR}/build.log"
+  assert_grep 'CARGO_NET_OFFLINE=false' "${TEST_DIR}/build.log"
+}
+
+test_source_only_project_does_not_require_python_constraints() {
+  local source_root="${TEST_DIR}/containers/gamma/src/gamma"
+  mkdir -p "${source_root}" "${TEST_DIR}/containers/gamma/tool"
+  echo "FROM scratch" > "${TEST_DIR}/containers/gamma/tool/Containerfile"
+  cat > "${TEST_DIR}/containers/gamma/sources.txt" <<EOF
+master gamma https://example.invalid/gamma.git main 0123456789abcdef0123456789abcdef01234567 -
+EOF
+
+  _run build gamma/tool >"${TEST_DIR}/build.log" 2>&1
+  assert_no_grep "CONSTRAINTS_FILE" "${TEST_DIR}/build.log"
+  assert_grep "DONE gamma/tool" "${TEST_DIR}/build.log"
+}
+
+test_prefetch_cargo_populates_repo_tmp_cache() {
+  local source_root="${TEST_DIR}/containers/gamma/src/gamma"
+  mkdir -p "${source_root}" "${TEST_DIR}/containers/gamma/tool"
+  echo "FROM scratch" > "${TEST_DIR}/containers/gamma/tool/Containerfile"
+  touch "${source_root}/Cargo.toml"
+  cat > "${TEST_DIR}/containers/gamma/sources.txt" <<EOF
+master gamma https://example.invalid/gamma.git main 0123456789abcdef0123456789abcdef01234567 -
+EOF
+  cat > "${TEST_DIR}/bin/cargo" <<'FAKE_CARGO'
+#!/usr/bin/env bash
+echo "CARGO_HOME=${CARGO_HOME} ARGS $*"
+FAKE_CARGO
+  chmod +x "${TEST_DIR}/bin/cargo"
+
+  _run prefetch-cargo gamma/tool >"${TEST_DIR}/prefetch.log" 2>&1
+  assert "cargo cache directory exists" test -d "${TEST_DIR}/.tmp/cargo-home/gamma/tool"
+  assert_grep 'fetch --locked --manifest-path' "${TEST_DIR}/prefetch.log"
+  assert_grep 'CARGO_HOME=.*/.tmp/cargo-home/gamma/tool' "${TEST_DIR}/prefetch.log"
+
+  _run build gamma/tool >"${TEST_DIR}/build.log" 2>&1
+  assert_grep 'volume .*/.tmp/cargo-home/gamma/tool:/cargo:rw,z' "${TEST_DIR}/build.log"
 }
 
 test_build_applies_oci_labels() {
@@ -270,6 +307,8 @@ TESTS=(
   test_build_passes_source_version_arguments
   test_build_applies_oci_labels
   test_build_applies_oci_labels_on_base
+  test_source_only_project_does_not_require_python_constraints
+  test_prefetch_cargo_populates_repo_tmp_cache
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates

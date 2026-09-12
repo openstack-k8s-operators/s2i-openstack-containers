@@ -290,7 +290,9 @@ tox -ecustom -- list
 
 ### Initial setup
 
-1. Create `containers/<project>/sources.txt` with entries for each stream.
+1. Create `containers/<project>/sources.txt` with entries for each stream. Add
+   an `upper-constraints` entry only when the image has Python dependencies;
+   source-only utility images can pin their own source without one.
 2. Create image directories under `containers/<project>/<image>/` with
    a `Containerfile` and the four dependency files.
 3. Run `update-sources` to generate lockfiles and constraints.

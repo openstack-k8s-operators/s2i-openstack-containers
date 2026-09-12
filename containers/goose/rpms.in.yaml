@@ -1,0 +1,26 @@
+contentOrigin:
+  repofiles:
+    - ../../rpms.repo
+context:
+  bare: true
+
+arches:
+  - x86_64
+  - aarch64
+
+packages:
+  - ca-certificates
+  - clang
+  - cmake
+  - dbus-libs
+  - gcc
+  - gcc-c++
+  - git-core
+  - gzip
+  - libgomp
+  - libxcb
+  - openssl-devel
+  - openssl-libs
+  - pkgconf-pkg-config
+  - tar
+  - xz

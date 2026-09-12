@@ -5,3 +5,5 @@ __pycache__/
 *$py.class
 # HTTP artifacts fetched by build.sh from artifacts.txt
 **/*.tar.gz
+containers/goose/goose/rust-1.94.1-linux-amd64.tar.xz
+containers/goose/goose/rust-1.94.1-linux-arm64.tar.xz
