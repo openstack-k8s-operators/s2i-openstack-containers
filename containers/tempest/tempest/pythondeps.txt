@@ -8,4 +8,4 @@ os-testr
 # pull this in automatically.
 junitxml
 # telemetry-tempest-plugin deps
-gabbi==4.1.1
+gabbi===4.2.0

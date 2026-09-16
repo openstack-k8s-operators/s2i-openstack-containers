@@ -23,7 +23,7 @@ eventlet==0.41.2
 fasteners==0.20
 fixtures==4.3.2
 futurist==3.5.0
-gabbi==4.1.1
+gabbi==4.2.0
 gnocchiclient==7.2.0
 greenlet==3.5.5
 h11==0.16.0
