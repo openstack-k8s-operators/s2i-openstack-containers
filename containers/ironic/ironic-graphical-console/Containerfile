@@ -103,7 +103,7 @@ ENV DEBUG=0
 ENV FIREFOX=firefox
 ENV FIREFOX_USER=ironic
 ENV FIREFOX_USER_HOME=/var/lib/${FIREFOX_USER}
-ENV FIREFOX_CONFIG_DIR=${FIREFOX_USER_HOME}/.mozilla/firefox
+ENV FIREFOX_PROFILE_DIR=${FIREFOX_USER_HOME}/.ironic-vnc-profile
 ARG EXTENSION_PATH_RELATIVE
 ENV EXTENSION_PATH="/usr/${EXTENSION_PATH_RELATIVE}"
 
@@ -120,6 +120,16 @@ COPY --from=build /build /usr
 COPY --from=build /source-built-packages.txt /source-built-packages.txt
 COPY --from=build /build /build
 COPY --from=build /drivers /drivers
+
+# Install python dependencies
+ARG CONSTRAINTS_FILE=requirements.lock
+COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY ironic-graphical-console/pythondeps.txt /tmp/pythondeps.txt
+RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    pip3 install --no-cache-dir --prefix=/usr \
+      -c /deps-upper-constraints.txt \
+      ${extrapkgs} && \
+    rm /tmp/pythondeps.txt
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["/usr/local/bin/start-x11vnc.py"]
