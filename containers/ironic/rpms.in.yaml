@@ -87,9 +87,7 @@ packages:
   - python3-mod_wsgi
   - python3-numpy
   - python3-pip
-  - python3-requests
   - python3-systemd
-  - python3-urllib3
   - qemu-img
   - rust
   - shim

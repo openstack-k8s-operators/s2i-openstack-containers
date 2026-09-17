@@ -21,8 +21,6 @@ openssl
 pixman
 procps
 psmisc
-python3-requests
-python3-urllib3
 which
 xkbcomp
 zlib
