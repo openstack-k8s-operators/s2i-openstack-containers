@@ -10,6 +10,7 @@ arches:
 
 packages:
   - cargo
+  - curl
   - gcc
   - gcc-c++
   - git-core
