@@ -106,9 +106,8 @@ COPY --from=build /configfiles/etc/designate/api-paste.ini /etc/designate/api-pa
 RUN chmod 640 /etc/designate/api-paste.ini && \
     chown designate:designate /etc/designate/api-paste.ini
 
-RUN mkdir -p /var/www/cgi-bin/designate
-COPY designate-api/scripts/designate-api-wsgi /var/www/cgi-bin/designate
-RUN chown -R designate /var/www/cgi-bin/designate && chmod 755 /var/www/cgi-bin/designate/designate-api-wsgi
+COPY designate-api/scripts/designate-api-wsgi /usr/bin
+RUN chmod 755 /usr/bin/designate-api-wsgi
 
 RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
     sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf 2>/dev/null || true && \
