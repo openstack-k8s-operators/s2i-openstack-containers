@@ -20,3 +20,17 @@
             dependencies:
               - s2i-openstack-container-content-provider
               - s2i-openstack-container-consumer-smoke
+        - watcher-s2i-tempest:
+            required-projects:
+              - name: openstack-k8s-operators/s2i-openstack-containers
+                override-checkout: main
+              - name: openstack-k8s-operators/watcher-operator
+                override-checkout: main
+            vars:
+              content_provider_registry_ip: '{{ s2i_content_provider_registry_ip }}'
+            files:
+              - ^containers/watcher/
+              - ^containers/base/
+            dependencies:
+              - s2i-openstack-container-content-provider
+              - s2i-openstack-container-consumer-smoke
