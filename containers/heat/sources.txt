@@ -1,2 +1,2 @@
 master upper-constraints https://opendev.org/openstack/requirements.git master 9edc04289eca1a4c18ae86e4430416d82a5b07fa -
-master heat https://opendev.org/openstack/heat.git master 9318ce722876ef4d824a22e114ff9cd22508ccc4 26.1.0.dev131
+master heat https://opendev.org/openstack/heat.git master 27076e9119480a92aeb3e367834ba4d96996cb1d 27.1.0.dev13
