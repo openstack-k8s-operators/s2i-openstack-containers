@@ -121,7 +121,9 @@
       It is possible to extend it with additional mapping,
       for example for cinder-volume and manila-share.
     required-projects: *s2i_test_base_requiredprojects
-    vars: *s2i_test_base_vars
+    vars:
+      <<: *s2i_test_base_vars
+      cifmw_services_manila_enabled: false
 
 - job:
     name: s2i-openstack-deploy-validation
@@ -169,6 +171,8 @@
                 kind: OpenStackControlPlane
       # actually deploy swift and disable RGW
       cifmw_services_swift_enabled: true
+      # manila needs to be tested
+      cifmw_services_manila_enabled: true
       cifmw_ceph_daemons_layout:
         rgw_enabled: false
         dashboard_enabled: false
