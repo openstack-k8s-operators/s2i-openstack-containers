@@ -1,0 +1,9 @@
+# Applied to every scanned lockfile via --config in the OSV-Scanner workflow.
+# https://google.github.io/osv-scanner/configuration/
+#
+# Ignore a finding only with a reason, and preferably an expiry:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-yyyy-zzzz"
+# ignoreUntil = 2027-12-31
+# reason = "No fix available within OpenStack upper-constraints"
