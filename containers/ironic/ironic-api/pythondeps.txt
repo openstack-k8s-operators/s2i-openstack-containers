@@ -3,6 +3,9 @@
 oslo.db[mysql]
 # Caching backend (dogpile extra for oslo.cache)
 oslo.cache[dogpile]
+legacy-cgi
+requests
+urllib3
 
 # Paste/PasteDeploy require pkg_resources, removed in setuptools 82
 setuptools==80.10.2

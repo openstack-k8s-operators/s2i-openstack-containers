@@ -84,7 +84,6 @@ pyyaml==6.0.3
 redis==8.1.0
 referencing==0.37.0
 repoze-lru==0.8
-requests==2.34.2
 rfc3986==2.0.0
 routes==2.5.1
 rpds-py==2026.6.3
@@ -101,7 +100,6 @@ tooz==9.1.0
 typing-extensions==4.16.0
 tzdata==2026.3
 uhashring==2.5
-urllib3==2.7.0
 vine==5.1.0
 voluptuous==0.16.0
 wcwidth==0.8.2
