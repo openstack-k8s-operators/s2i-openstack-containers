@@ -3,3 +3,6 @@
 oslo.db[mysql]
 # Required by keystonemiddleware for memcache-based token caching
 oslo.cache[dogpile]
+
+# HTTP tracing exporter extra for oslo.middleware (OpenTelemetry over HTTP)
+oslo.middleware[tracing-http]
