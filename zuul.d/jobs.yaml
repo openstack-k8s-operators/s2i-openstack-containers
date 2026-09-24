@@ -75,6 +75,11 @@
       # and manila-share)
       s2i_cinder_volume_backends: []
       s2i_manila_share_backends: []
+      # Ensure that by default the cinder-volume and manila-share
+      # container images are not set, or they end up being overriden
+      # in the OpenStackVersion CR (until the code is made more linear).
+      cifmw_edpm_prepare_cindervolumes: []
+      cifmw_edpm_prepare_manilashares: []
       cifmw_set_containers_images: >-
         {{
           (
