@@ -7,3 +7,6 @@ oslo.db[mysql]
 # openstack-octavia spec for those subpackages. Harmless to install
 # in the API image too since it is a pure-python client library.
 redis
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]
