@@ -22,8 +22,10 @@ This is the right (and only) lever for removing packages from the dependency
 set, because the package set is derived from source at lock-generation time.
 It is **not** for:
 
-- **Pinning or bumping versions** -- that is what the normal
-  `update-sources` / `update-lockfiles` flow does.
+- **Pinning or bumping versions** -- use an exact version pin
+  (`pkg==version`) in `pythondeps.txt` or `pythonbuilddeps.txt` to
+  override the `upper-constraints.txt` version. The pinned package is
+  automatically removed from the constraints before `pip-compile` runs.
 - **Packages provided another way at runtime** (e.g. from an RPM) -- those are
   handled by the `rpms.in.yaml` / RPM lockfile mechanism.
 - **Removing a transitive dependency whose parent you want to keep** -- you

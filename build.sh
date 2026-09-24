@@ -66,6 +66,9 @@
 #     Each project can have a different constraints file (different streams
 #     may track different releases).
 #     Alternatively, place it manually at containers/<project>/upper-constraints.txt.
+#     Exact version pins (pkg==version) in pythondeps.txt or pythonbuilddeps.txt
+#     override the constraints: the pinned package is removed from the
+#     constraints file before pip-compile runs so the local pin wins.
 #
 #   Lockfile:
 #     When update-sources runs, it also generates a pip-compile lockfile at
@@ -1452,6 +1455,86 @@ normalize_generated_lock() {
   rm "${tmp}"
 }
 
+# Collect exact-version pins (pkg==version) from pythondeps.txt and
+# pythonbuilddeps.txt across a project and its images. Prints normalized
+# package names (lowercase, dots/underscores → hyphens) one per line.
+collect_pinned_python_packages() {
+  local project_dir="$1"
+  local -A seen
+  local depfile image_dir image line pkg
+
+  for depfile in pythondeps.txt pythonbuilddeps.txt; do
+    [[ -f "${project_dir}/${depfile}" ]] || continue
+    while IFS= read -r line; do
+      line="${line%%#*}"; line="${line// /}"
+      [[ -z "${line}" ]] && continue
+      if [[ "${line}" =~ ^([a-zA-Z0-9][a-zA-Z0-9._-]*)(\[.*\])?==.+ ]]; then
+        pkg="${BASH_REMATCH[1]}"
+        pkg=$(echo "${pkg}" | tr '[:upper:]' '[:lower:]' | sed 's/[._]/-/g')
+        seen["${pkg}"]=1
+      fi
+    done < "${project_dir}/${depfile}"
+  done
+
+  for image_dir in "${project_dir}"/*/; do
+    image=$(basename "${image_dir}")
+    [[ "${image}" == "common" || "${image}" == "src" ]] && continue
+    [[ -f "${image_dir}/Containerfile" ]] || continue
+    for depfile in pythondeps.txt pythonbuilddeps.txt; do
+      [[ -f "${image_dir}/${depfile}" ]] || continue
+      while IFS= read -r line; do
+        line="${line%%#*}"; line="${line// /}"
+        [[ -z "${line}" ]] && continue
+        if [[ "${line}" =~ ^([a-zA-Z0-9][a-zA-Z0-9._-]*)(\[.*\])?==.+ ]]; then
+          pkg="${BASH_REMATCH[1]}"
+          pkg=$(echo "${pkg}" | tr '[:upper:]' '[:lower:]' | sed 's/[._]/-/g')
+          seen["${pkg}"]=1
+        fi
+      done < "${image_dir}/${depfile}"
+    done
+  done
+
+  printf '%s\n' "${!seen[@]}"
+}
+
+# Remove entries for version-pinned packages in pythondeps/pythonbuilddeps
+# from a constraints file in place, so those pins take priority in
+# pip-compile. The constraints file is a transient working copy
+# (re-fetched on each update-sources / sync-locks run).
+# Args: <constraints_file> <project_dir>
+apply_constraints_overrides() {
+  local constraints_file="$1"
+  local project_dir="$2"
+
+  local pinned_pkgs
+  pinned_pkgs=$(collect_pinned_python_packages "${project_dir}")
+  [[ -z "${pinned_pkgs}" ]] && return
+
+  local exclude_str
+  exclude_str=$(echo "${pinned_pkgs}" | tr '\n' ' ')
+  echo "--- Removing constraints for version-pinned overrides: ${exclude_str}---"
+
+  local tmp
+  tmp=$(mktemp)
+  awk -v excl="${exclude_str}" '
+  BEGIN {
+    n = split(excl, arr, " ")
+    for (i = 1; i <= n; i++) exclude[arr[i]] = 1
+  }
+  /^[a-zA-Z]/ {
+    pkg = $0
+    sub(/[>=<!\[;].*/, "", pkg)
+    gsub(/^[ \t]+|[ \t]+$/, "", pkg)
+    norm = tolower(pkg)
+    gsub(/[._]/, "-", norm)
+    if (norm in exclude) next
+  }
+  { print }
+  ' "${constraints_file}" > "${tmp}"
+  install -m 644 "${tmp}" "${constraints_file}"
+  rm "${tmp}"
+}
+
 # Generate a single requirements.lock for a project by running pip-compile
 # against requirements.txt from all source packages (project + all images)
 # plus pythondeps.txt and pythonbuilddeps.txt from every image,
@@ -1517,6 +1600,8 @@ generate_requirements_lock() {
   fi
 
   local lock_file="${CONSTRAINTS_FILE}.${stream}"
+
+  apply_constraints_overrides "${constraints_file}" "${project_dir}"
 
   echo "--- Generating ${project_dir}/${lock_file} ---"
   (cd "${project_dir}" && \
@@ -1693,6 +1778,22 @@ regenerate_requirements_lock() {
     done
   done
 
+  apply_constraints_overrides "${constraints_file}" "${project_dir}"
+
+  # Strip version-pinned overrides from the old lockfile input so its pins
+  # do not conflict with the versions requested in pythondeps/pythonbuilddeps.
+  local pinned_pkgs
+  pinned_pkgs=$(collect_pinned_python_packages "${project_dir}")
+  local filtered_lock=""
+  if [[ -n "${pinned_pkgs}" ]]; then
+    local pinned_str
+    pinned_str=$(echo "${pinned_pkgs}" | tr '\n' ' ')
+    filtered_lock=$(mktemp "${project_dir}/.${lock_file}.filtered.XXXXXX")
+    cp "${lock_path}" "${filtered_lock}"
+    filter_lockfile_rpm_packages "${filtered_lock}" "${pinned_str}"
+    input_files[0]="${filtered_lock##*/}"
+  fi
+
   local tmp_lock
   tmp_lock=$(mktemp "${project_dir}/.${lock_file}.XXXXXX")
 
@@ -1703,9 +1804,11 @@ regenerate_requirements_lock() {
       -o "${tmp_lock##*/}" \
       "${input_files[@]}" && \
     normalize_generated_lock "${tmp_lock##*/}"); then
+    [[ -n "${filtered_lock}" ]] && rm -f "${filtered_lock}"
     rm -f "${tmp_lock}"
     return 1
   fi
+  [[ -n "${filtered_lock}" ]] && rm -f "${filtered_lock}"
   mv "${tmp_lock}" "${lock_path}"
 
   local rpm_pkgs
