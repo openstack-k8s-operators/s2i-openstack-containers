@@ -19,6 +19,7 @@ eventlet==0.41.2
 fasteners==0.20
 fixtures==4.3.2
 futurist==3.5.0
+googleapis-common-protos==1.75.1
 greenlet==3.5.5
 httplib2==0.32.0
 idna==3.18
@@ -46,6 +47,12 @@ neutron==29.0.0.0b1
 neutron-lib==5.0.1
 ntc-templates==9.2.0
 openstacksdk==4.20.0
+opentelemetry-api==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
 os-ken==4.2.2
 os-resource-classes==1.1.0
 os-service-types==1.9.0
@@ -84,6 +91,7 @@ platformdirs==4.11.3
 prettytable==3.18.0
 prometheus-client==0.26.0
 prompt-toolkit==3.0.53
+protobuf==7.35.1
 psutil==7.2.2
 pycadf==4.1.0
 pycparser==3.0
