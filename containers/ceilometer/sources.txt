@@ -1,3 +1,3 @@
 # stream  name               repo                                                     branch  pinned-hash  version
-master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 880d5b43f2ba2c6ad05e5c05c81e157a0b284ad8 -
+master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 568297f47d9960a0a4ba5466aca5fd8bdd0bbd15 -
 master ceilometer https://opendev.org/openstack/ceilometer.git stable/2026.2 b07b0ef67881db8ff35d401154a09b17381269a5 27.0.0.0rc2.dev2

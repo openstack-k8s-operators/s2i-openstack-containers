@@ -1,4 +1,4 @@
-master networking-baremetal https://opendev.org/openstack/networking-baremetal.git stable/2026.2 6da7ef99d723d272e85ada346aae9aecf94d9f41 8.1.1.dev2
+master networking-baremetal https://opendev.org/openstack/networking-baremetal.git stable/2026.2 afaf138edd81ce7c742a9702e9f231748d720d57 8.1.1.dev3
 master networking-generic-switch https://opendev.org/openstack/networking-generic-switch.git stable/2026.2 65f05f1ba7b25904cc976a2a7cd0e719b7d2eca4 10.1.1.dev2
 master neutron-fwaas https://opendev.org/openstack/neutron-fwaas.git stable/2026.2 5303a4deed1ec636453c005f2b1bb1ff8aa62395 25.0.0.0rc2.dev2
 master tap-as-a-service https://opendev.org/openstack/tap-as-a-service.git stable/2026.2 44316fb3c5a217b2f4b8af891eacd40a2ead7b7f 18.0.0.0rc2.dev2
