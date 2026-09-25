@@ -1,6 +1,8 @@
 ---
 - project:
     name: openstack-k8s-operators/s2i-openstack-containers
+    templates:
+      - telemetry-operator-s2i-component-jobs
     github-check:
       jobs:
         - s2i-openstack-containers-molecule:
