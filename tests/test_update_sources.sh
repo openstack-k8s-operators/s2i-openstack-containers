@@ -833,6 +833,76 @@ test_update_sources_all_includes_pure_rpm() {
     test ! -f "${TEST_DIR}/containers/test-rpmsvc/requirements.lock.master"
 }
 
+# ── Constraints-override tests (pythondeps/pythonbuilddeps pins) ────────
+
+# update-sources: an exact pin (==) in pythondeps.txt overrides the
+# upper-constraints version so pip-compile uses the pythondeps pin.
+test_update_sources_pythondeps_pin_overrides_constraints() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  # Pin six to a version different from the constraints (which has six==1.17.0)
+  echo "six==1.16.0" > "${TEST_DIR}/containers/test-svc/test-svc/pythondeps.txt"
+
+  _run_build STREAM=master
+
+  local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${lock}"
+  assert_grep "^six==1.16.0" "${lock}"
+  assert_grep "Removing constraints for version-pinned overrides" "${TEST_DIR}/build.log"
+}
+
+# update-lockfiles: an exact pin (==) in pythondeps.txt overrides the
+# upper-constraints version during lockfile regeneration.
+test_update_lockfiles_pythondeps_pin_overrides_constraints() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  _run_build STREAM=master
+
+  echo "six==1.16.0" > "${TEST_DIR}/containers/test-svc/test-svc/pythondeps.txt"
+
+  _run_cmd STREAM=master -- update-lockfiles test-svc
+
+  local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${lock}"
+  assert_grep "^six==1.16.0" "${lock}"
+  assert_grep "Removing constraints for version-pinned overrides" "${TEST_DIR}/build.log"
+}
+
+# sync-locks: an exact pin (==) in pythondeps.txt overrides the
+# upper-constraints version when relocking.
+test_sync_locks_pythondeps_pin_overrides_constraints() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  # Stage a source checkout so sync-locks has something to compile from.
+  local src_dir="${TEST_DIR}/containers/test-svc/src/test-svc"
+  mkdir -p "${src_dir}"
+  echo "six" > "${src_dir}/requirements.txt"
+
+  echo "six==1.16.0" > "${TEST_DIR}/containers/test-svc/test-svc/pythondeps.txt"
+
+  _run_cmd STREAM=master -- sync-locks test-svc || true
+
+  local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${lock}"
+  assert_grep "^six==1.16.0" "${lock}"
+  assert_grep "Removing constraints for version-pinned overrides" "${TEST_DIR}/build.log"
+}
+
+# Non-pinned entries in pythondeps.txt (no ==) do not remove constraints.
+test_update_sources_pythondeps_unpinned_keeps_constraints() {
+  command -v pip-compile >/dev/null 2>&1 || skip_test "pip-compile not on PATH"
+
+  echo "six" > "${TEST_DIR}/containers/test-svc/test-svc/pythondeps.txt"
+
+  _run_build STREAM=master
+
+  local lock="${TEST_DIR}/containers/test-svc/requirements.lock.master"
+  assert_file_exists "${lock}"
+  # Constraints pin six==1.17.0 so the lockfile should use 1.17.0
+  assert_grep "^six==1.17.0" "${lock}"
+  assert_no_grep "Removing constraints for version-pinned overrides" "${TEST_DIR}/build.log"
+}
+
 # ── Requirement-exclusion tests ──────────────────────────────────────────
 
 # update-sources strips excluded requirements from the cloned source tree so the
@@ -1032,6 +1102,10 @@ TESTS=(
   test_update_lockfiles_pure_rpm_skips_lockfiles
   test_update_sources_all_includes_pure_rpm
   test_update_sources_applies_exclusions
+  test_update_sources_pythondeps_pin_overrides_constraints
+  test_update_lockfiles_pythondeps_pin_overrides_constraints
+  test_sync_locks_pythondeps_pin_overrides_constraints
+  test_update_sources_pythondeps_unpinned_keeps_constraints
   test_sync_locks_preserves_source_pins
   test_sync_locks_refreshes_constraints_at_branch_tip
   test_sync_locks_clones_missing_at_pinned_hash

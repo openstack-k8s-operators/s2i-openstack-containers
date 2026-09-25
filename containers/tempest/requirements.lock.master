@@ -39,7 +39,6 @@ iso8601==2.1.0
 jinja2==3.1.6
 jmespath==1.1.0
 jsonpatch==1.33
-jsonpath-ng==1.8.0
 jsonpath-rw==1.4.0
 jsonpath-rw-ext==1.2.2
 jsonpointer==3.1.1

@@ -185,9 +185,15 @@ entry per line (blank lines and `#` comments are ignored):
 - **`builddeps.txt`** -- System packages needed during the build stage only
   (compilers, header files). Not present in the final image.
 - **`pythonbuilddeps.txt`** -- Python packages needed during the build stage.
+  Exact version pins (`pkg==version`) override `upper-constraints.txt`
+  during lockfile generation, same as `pythondeps.txt`.
 - **`bindeps.txt`** -- System packages installed in the final runtime image.
 - **`pythondeps.txt`** -- Extra Python packages installed via pip in the
-  final image (database drivers, caching backends, CLI clients).
+  final image (database drivers, caching backends, CLI clients). Entries
+  with an exact version pin (`pkg==version`) override the corresponding
+  entry in `upper-constraints.txt` during lockfile generation -- the
+  pinned package is removed from the constraints file before `pip-compile`
+  runs so the version from `pythondeps.txt` takes priority.
 
 Entries in `bindeps.txt` and `builddeps.txt` can use either a plain package
 name (e.g. `python3-cryptography`) or a full NVR

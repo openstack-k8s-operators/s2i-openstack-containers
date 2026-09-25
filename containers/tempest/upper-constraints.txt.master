@@ -116,7 +116,7 @@ debtcollector===3.1.0
 responses===0.26.2
 prompt_toolkit===3.0.53
 croniter===6.2.4
-horizon===26.0.0
+horizon===27.0.0
 octavia-lib===3.12.0
 python-watcherclient===4.11.0
 MarkupSafe===3.0.3
@@ -269,7 +269,6 @@ pyperclip===1.11.0
 cassandra-driver===3.30.1
 XStatic-Angular-Schema-Form===0.8.13.1
 opentelemetry-exporter-otlp-proto-http===1.44.0
-gabbi===4.1.1
 nwdiag===3.0.0
 XStatic-bootswatch===3.3.7.1
 annotated-types===0.8.0
