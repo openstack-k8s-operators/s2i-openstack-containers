@@ -1,2 +1,5 @@
+# Database driver (mysql extra for oslo.db)
+oslo.db[mysql]
+
 # Paste/PasteDeploy require pkg_resources, removed in setuptools 82
 setuptools==80.10.2
