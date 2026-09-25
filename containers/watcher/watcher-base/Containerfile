@@ -98,6 +98,12 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
 RUN mkdir -p /etc/watcher /var/log/watcher /var/lib/watcher /var/cache/watcher && \
     chown -R watcher:watcher /etc/watcher /var/log/watcher /var/lib/watcher /var/cache/watcher
 
+# Link watcher/wsgi/api.py in /usr/bin/watcher-api-wsgi to be used as wsgi script for
+# backwards compatibility
+RUN rm -f /usr/bin/watcher-api-wsgi && \
+    ln -s /usr/lib/python*/site-packages/watcher/wsgi/api.py /usr/bin/watcher-api-wsgi && \
+    [ -e "/usr/bin/watcher-api-wsgi" ]
+
 # Apache httpd setup for the API process in the consolidated image
 RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
     sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf 2>/dev/null || true && \
