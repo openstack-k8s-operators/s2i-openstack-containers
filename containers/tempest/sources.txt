@@ -9,9 +9,9 @@ master glance-tempest-plugin https://opendev.org/openstack/glance-tempest-plugin
 master heat-tempest-plugin https://opendev.org/openstack/heat-tempest-plugin.git master 86fa2788922c21449be909c574ac8b364aa7164c 3.0.1.dev4
 master ironic-tempest-plugin https://opendev.org/openstack/ironic-tempest-plugin.git master 88dbe63b3c77c7c8c7fcfe97b52a5409def4f7ef 3.2.0
 master keystone-tempest-plugin https://opendev.org/openstack/keystone-tempest-plugin.git master 0266d55ff82ebd7b3a4c91f726e67a2bf4868afb 0.22.1.dev1
-master manila-tempest-plugin https://opendev.org/openstack/manila-tempest-plugin.git master a7805c94d9f74d81215ae16181423e232023ae04 3.2.1.dev1
+master manila-tempest-plugin https://opendev.org/openstack/manila-tempest-plugin.git master 883d988ba173bd646a46f1e3aab3a37aba12a1ec 3.2.1.dev2
 master networking-l2gw-tempest-plugin https://opendev.org/x/networking-l2gw-tempest-plugin.git master 26df011d60383b8a885cbf831cecb1743333fefb 0.1.1.dev24
 master neutron-tempest-plugin https://opendev.org/openstack/neutron-tempest-plugin.git master b922632bb31640557270ce0d208575f29b883d77 3.3.1.dev6
 master octavia-tempest-plugin https://opendev.org/openstack/octavia-tempest-plugin.git master 3d0aefdebb4de7e8ef80821fe8e7ce91a982e92f 3.5.0
-master telemetry-tempest-plugin https://opendev.org/openstack/telemetry-tempest-plugin.git master 22f969cc3d72fafbfc3762c9559080cfcfcc268e 2.11.1.dev2
-master watcher-tempest-plugin https://opendev.org/openstack/watcher-tempest-plugin.git master b630b3892349074af4fa2dc59dddee2a3fc72468 3.9.0
+master telemetry-tempest-plugin https://opendev.org/openstack/telemetry-tempest-plugin.git master 0037426bafafd4b6cf0926f17ae601620643b887 2.11.1.dev3
+master watcher-tempest-plugin https://opendev.org/openstack/watcher-tempest-plugin.git master 0c8357eaaf7f4bd1b7c81cb231d60785dba32362 3.9.1.dev1
