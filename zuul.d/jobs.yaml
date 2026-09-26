@@ -40,7 +40,7 @@
 - job:
     name: s2i-test-base
     abstract: true
-    parent: podified-multinode-edpm-deployment-crc-2comp
+    parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
     description: |
       Validate speculatively-built s2i images against a live
       OpenStack deployment. s2i-built images from the
@@ -109,7 +109,7 @@
 - job:
     name: s2i-test-base-ceph
     abstract: true
-    parent: podified-multinode-hci-deployment-crc-1comp-backends
+    parent: podified-multinode-hci-deployment-crc-1comp-backends-centos-10
     description: |
       Validate speculatively-built s2i images against a live
       HCI OpenStack deployment with Ceph. s2i-built images from the
