@@ -1,0 +1,102 @@
+---
+# Resolve `s2i_ci_images: changes` from files modified in this Zuul checkout.
+#
+# Called from shared/run.yaml when s2i_ci_images == "changes".
+# After this task file completes, s2i_ci_images is either "all" or a
+# de-duplicated list of image targets.
+#
+# Required variables (set by run.yaml before including this):
+#   s2i_ci_container_repo  - path to the s2i-openstack-containers checkout
+#
+# Use this mode only when the triggering change is this repository.
+# Operator and OpenDev speculative jobs must keep an explicit list or
+# `auto`; git diff here reads the s2i checkout, not the triggering repo.
+
+- name: List files changed in this Zuul merge checkout
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ s2i_ci_container_repo }}"
+      - diff
+      - --name-only
+      - HEAD^1
+      - HEAD
+  register: s2i_ci_git_diff
+  changed_when: false
+  failed_when: false
+
+- name: Fall back to single-parent diff when merge base is unavailable
+  when: s2i_ci_git_diff.rc != 0
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ s2i_ci_container_repo }}"
+      - diff
+      - --name-only
+      - HEAD~1
+      - HEAD
+  register: s2i_ci_git_diff_fallback
+  changed_when: false
+  failed_when: false
+
+- name: Record changed file paths for target resolution
+  ansible.builtin.set_fact:
+    s2i_ci_changed_files: >-
+      {{
+        (
+          s2i_ci_git_diff.stdout_lines
+          if s2i_ci_git_diff.rc == 0
+          else (
+            s2i_ci_git_diff_fallback.stdout_lines
+            if s2i_ci_git_diff_fallback is defined
+               and s2i_ci_git_diff_fallback.rc == 0
+            else []
+          )
+        ) | default([], true)
+      }}
+
+- name: Resolve image targets from changed file paths
+  ansible.builtin.command:
+    # Pass paths as argv. A stdin-only call used to inherit the generic
+    # TARGETS=("all") default and force a full rebuild.
+    argv: >-
+      {{
+        [s2i_ci_container_repo ~ '/build.sh', 'images-from-changes']
+        + (s2i_ci_changed_files | default([], true) | list)
+      }}
+  args:
+    chdir: "{{ s2i_ci_container_repo }}"
+  register: s2i_ci_images_from_changes
+  changed_when: false
+
+- name: Apply changed-path image selection
+  ansible.builtin.set_fact:
+    s2i_ci_images: >-
+      {{
+        'all' if (s2i_ci_images_from_changes.stdout | trim) == 'all'
+        else (s2i_ci_images_from_changes.stdout_lines | reject('equalto', '') | list)
+      }}
+
+- name: Fail if changed-path resolution produced no targets
+  ansible.builtin.assert:
+    that:
+      - s2i_ci_images == 'all' or s2i_ci_images | length > 0
+    fail_msg: >-
+      Could not resolve image targets from changed files:
+      {{ s2i_ci_changed_files | join(', ') }}
+
+- name: Report changed-path image selection
+  ansible.builtin.debug:
+    msg: >-
+      {% if s2i_ci_images == 'all' -%}
+      Selected all images from {{ s2i_ci_changed_files | length }} changed file(s)
+      {%- if s2i_ci_changed_files -%}
+      : {{ s2i_ci_changed_files | join(', ') }}
+      {%- endif -%}
+      {%- else -%}
+      Selected {{ s2i_ci_images | length }} image(s) from
+      {{ s2i_ci_changed_files | length }} changed file(s):
+      {{ s2i_ci_images | join(', ') }}
+      {%- endif %}

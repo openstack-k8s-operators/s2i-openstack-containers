@@ -11,6 +11,8 @@
               - ^LICENSE.*$
         - s2i-openstack-container-content-provider:
             irrelevant-files: *irrelevant-for-zuul
+            vars:
+              s2i_ci_images: changes
         - s2i-openstack-container-consumer-smoke:
             irrelevant-files: *irrelevant-for-zuul
             dependencies:
