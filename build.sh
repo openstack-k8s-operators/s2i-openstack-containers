@@ -60,6 +60,13 @@
 #   Overrides: place patched dependencies in containers/<project>/src/overrides/<pkg>/
 #   These are picked up automatically — no sources.txt entry needed.
 #
+#   Capabilities:
+#     Place a capabilities.txt file alongside the Containerfile to pass
+#     --cap-add flags to buildah bud.  One capability per line; blank lines
+#     and lines starting with # are ignored.
+#     Example: containers/nova/nova-api/capabilities.txt
+#       CAP_SYS_ADMIN
+#
 #   Constraints file:
 #     Defined via an "upper-constraints" entry in each project's sources.txt.
 #     build.sh fetches the file from the repo at the pinned hash.
@@ -1149,6 +1156,24 @@ prefetch_cargo() {
     CARGO_HOME="${cache_dir}" cargo fetch --locked --manifest-path "${source_dir}/Cargo.toml"
   done
 }
+# Build a --cap-add argument list from a capabilities.txt file.
+# Each non-blank, non-comment line is treated as one capability name.
+# The result is stored in the caller's cap_add_args array (must be declared
+# local by the caller before invoking this function).
+# Args: <containerfile_dir>
+load_capabilities() {
+  local caps_file="${1}/capabilities.txt"
+  if [[ ! -f "${caps_file}" ]]; then
+    return
+  fi
+  while IFS= read -r _cap; do
+    _cap="${_cap%%#*}"        # strip inline comments
+    _cap="${_cap//[[:space:]]/}"  # strip whitespace
+    [[ -z "${_cap}" ]] && continue
+    cap_add_args+=(--cap-add "${_cap}")
+  done < "${caps_file}"
+}
+
 # Build a single image
 build_image() {
   local dir_name="$1"
@@ -1169,12 +1194,15 @@ build_image() {
       ensure_project_constraints "${dir_name}" "${STREAM}"
       base_constraints="${UPSTREAM_CONSTRAINTS}.${STREAM}"
     fi
+    local cap_add_args=()
+    load_capabilities "${CONTAINERS_DIR}/${dir_name}"
     buildah_bud \
       $(image_tag_args "${dir_name}") \
       $(image_label_args) \
       --build-arg "CONSTRAINTS_FILE=${base_constraints}" \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
       ${PIP_NO_BINARY:+--build-arg "PIP_NO_BINARY=${PIP_NO_BINARY}"} \
+      "${cap_add_args[@]}" \
       -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
       "${CONTAINERS_DIR}/${dir_name}/"
     return
@@ -1189,10 +1217,13 @@ build_image() {
 
   # Pure RPM project: no sources to clone, no constraints needed
   if [[ ! -f "${CONTAINERS_DIR}/${project}/sources.txt" ]]; then
+    local cap_add_args=()
+    load_capabilities "${CONTAINERS_DIR}/${dir_name}"
     buildah_bud \
       $(image_tag_args "${dir_name}") \
       $(image_label_args) \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+      "${cap_add_args[@]}" \
       -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
       "${CONTAINERS_DIR}/${project}/"
     return
@@ -1250,6 +1281,8 @@ build_image() {
     constraint_arg=(--build-arg "CONSTRAINTS_FILE=${build_constraints}")
   fi
 
+  local cap_add_args=()
+  load_capabilities "${CONTAINERS_DIR}/${dir_name}"
   buildah_bud \
     $(image_tag_args "${dir_name}") \
     $(image_label_args) \
@@ -1260,6 +1293,7 @@ build_image() {
     --build-arg "CARGO_NET_OFFLINE=${CARGO_NET_OFFLINE}" \
     --build-arg "PBR_VERSION_FROM_GIT=${PBR_VERSION_FROM_GIT}" \
     --build-arg "SOURCE_VERSION_STREAM=${STREAM}" \
+    "${cap_add_args[@]}" \
     -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
     "${CONTAINERS_DIR}/${project}/"
 }
@@ -2842,8 +2876,9 @@ case "${ACTION}" in
     echo "  SOURCE_CACHE         Retain bare Git source caches (default: false)"
     echo "  SOURCE_CACHE_DIR     Bare Git source-cache location (default: .tmp/source_cache)"
     echo ""
-    echo "Source directories: containers/<project>/src/<name>/"
-    echo "Overrides:          containers/<project>/src/overrides/<pkg>/"
+  echo "Source directories: containers/<project>/src/<name>/"
+  echo "Overrides:          containers/<project>/src/overrides/<pkg>/"
+  echo "Capabilities:       containers/<project>/<image>/capabilities.txt  (one cap per line)"
     exit 1
     ;;
 esac
