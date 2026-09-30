@@ -57,6 +57,8 @@ FROM ${BASE_IMAGE} AS build
 # Copy constraints file and all source repos into the build stage
 ARG CONSTRAINTS_FILE=requirements.lock
 COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
+COPY sources.txt /source-versions/project.txt
+COPY ironic-python-agent/sources.txt /source-versions/image.txt
 COPY src/ /src/
 COPY ironic-python-agent/src/ /src/
 
@@ -85,10 +87,17 @@ RUN cp /deps-upper-constraints.txt /tmp/build-constraints.txt && \
     done
 
 # First build the wheels for the packages themselves
+# TODO: remove PBR_VERSION workaround when all source changes are in upstream master
+ARG SOURCE_VERSION_STREAM=master
 RUN for pkg in /src/*/ /src/overrides/*/; do \
       if [ -d "${pkg}" ] && [ -f "${pkg}/setup.cfg" -o -f "${pkg}/setup.py" -o -f "${pkg}/pyproject.toml" ]; then \
-        pip3 wheel --no-cache-dir --no-deps \
-          --wheel-dir=/wheels/pkgs "${pkg}"; \
+        source_name=$(basename "${pkg%/}"); \
+        source_version=$(awk -v stream="${SOURCE_VERSION_STREAM}" \
+          -v name="${source_name}" \
+          '$1 == stream && $2 == name { print $6; exit }' \
+          /source-versions/*.txt); \
+        PBR_VERSION="${source_version}" pip3 wheel --no-cache-dir --no-deps \
+          --no-build-isolation --wheel-dir=/wheels/pkgs "${pkg}"; \
       fi; \
     done
 
@@ -167,7 +176,15 @@ ENV ELEMENTS_PATH=/elements
 COPY ironic-python-agent/elements/ /elements/
 
 # Build the initramfs
-RUN ironic-python-agent-builder --output /build/ironic-python-agent ipa-s2i
+# TODO: remove DIB_REPOREF workaround when all source changes are in upstream master
+# Shallow clones lack a master branch; point DIB at the pinned commit hash
+# so source-repositories checks out the commit that is already present.
+RUN DIB_REPOREF_ironic_python_agent="$(awk \
+      -v stream="${SOURCE_VERSION_STREAM}" \
+      '$1 == stream && $2 == "ironic-python-agent" { print $5; exit }' \
+      /source-versions/*.txt)" && \
+    export DIB_REPOREF_ironic_python_agent && \
+    ironic-python-agent-builder --output /build/ironic-python-agent ipa-s2i
 
 # --- Packaging stage: fetch from build and add copy-out script ---
 FROM ${BASE_IMAGE}
