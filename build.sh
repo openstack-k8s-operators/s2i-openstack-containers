@@ -1542,11 +1542,7 @@ list_sources() {
       url_path="${url_path%.git}"
 
       local dest_dir
-      if [[ "${target}" == "base" ]]; then
-        dest_dir="${CONTAINERS_DIR}/base/src/${name}"
-      else
-        dest_dir="${CONTAINERS_DIR}/${project}/src/${name}"
-      fi
+      dest_dir="$(dirname "${sources_file}")/src/${name}"
 
       echo "${name}|${url_path}|${url}|${dest_dir}"
     done < "${sources_file}"

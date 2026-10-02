@@ -238,6 +238,18 @@ test_list_sources_image_level_includes_project_and_image_sources() {
   assert_grep "beta-extra" "${TEST_DIR}/build.log"
 }
 
+test_list_sources_dest_dir_matches_build_layout() {
+  local output
+  output="$(_run list-sources beta/beta-sub master 2>/dev/null)"
+  echo "${output}" > "${TEST_DIR}/build.log"
+
+  # Each entry stages beside the sources.txt that declares it.
+  assert_grep "^beta-svc|.*/containers/beta/src/beta-svc$" \
+    "${TEST_DIR}/build.log"
+  assert_grep "^beta-extra|.*/containers/beta/beta-sub/src/beta-extra$" \
+    "${TEST_DIR}/build.log"
+}
+
 test_list_sources_excludes_upper_constraints() {
   local output
   output="$(_run list-sources alpha/alpha-one master 2>/dev/null)"
@@ -290,6 +302,7 @@ TESTS=(
   test_no_arg_fails
   test_list_sources_image_level_returns_pipe_delimited
   test_list_sources_image_level_includes_project_and_image_sources
+  test_list_sources_dest_dir_matches_build_layout
   test_list_sources_excludes_upper_constraints
   test_list_sources_project_level_includes_image_level_sources
   test_list_sources_project_level_deduplicates

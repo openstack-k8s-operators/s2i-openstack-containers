@@ -46,5 +46,5 @@
       ansible.builtin.set_fact:
         s2i_ci_staged_projects: >-
           {{ ((s2i_ci_staged_projects | default([]))
-              + [s2i_ci_src[3] | dirname | dirname | basename])
+              + [s2i_ci_src[3].split('/containers/')[1].split('/')[0]])
              | unique | list }}
