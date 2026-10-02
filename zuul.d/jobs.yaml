@@ -8,12 +8,6 @@
       python_version: "3.12"
       tox_envlist: molecule
 
-- nodeset:
-    name: s2i-openstack-containers-image-builder
-    nodes:
-      - name: builder
-        label: cloud-centos-10-stream
-
 - job:
     name: s2i-openstack-container-content-provider
     parent: base
