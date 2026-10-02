@@ -45,7 +45,7 @@
 - job:
     name: s2i-test-base
     abstract: true
-    parent: podified-multinode-edpm-deployment-crc-2comp
+    parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
     description: |
       Validate speculatively-built s2i images against a live
       OpenStack deployment. s2i-built images from the
@@ -116,14 +116,15 @@
           )
         }}
       s2i_extras_base:
-        - '@scenarios/centos-9/multinode-ci.yml'
+        - '@scenarios/centos-10/base.yml'
+        - '@scenarios/centos-10/multinode-ci.yml'
       s2i_extras: []
       cifmw_extras: "{{ [s2i_extras_base | default([]), s2i_extras] | flatten }}"
 
 - job:
     name: s2i-test-base-ceph
     abstract: true
-    parent: podified-multinode-hci-deployment-crc-1comp
+    parent: podified-multinode-hci-deployment-crc-1comp-centos-10
     description: |
       Validate speculatively-built s2i images against a live
       HCI OpenStack deployment with Ceph. s2i-built images from the
@@ -139,8 +140,9 @@
       <<: *s2i_test_base_vars
       cifmw_services_manila_enabled: false
       s2i_extras_base:
-        - '@scenarios/centos-9/multinode-ci.yml'
-        - '@scenarios/centos-9/hci_ceph_backends.yml'
+        - '@scenarios/centos-10/base.yml'
+        - '@scenarios/centos-10/multinode-ci.yml'
+        - '@scenarios/centos-10/hci_ceph_backends.yml'
 
 - job:
     name: s2i-openstack-deploy-validation
