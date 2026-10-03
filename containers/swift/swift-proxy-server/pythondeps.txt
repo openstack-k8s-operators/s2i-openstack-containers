@@ -12,3 +12,6 @@ python-swiftclient
 # but swift-operator adds the kms_keymaster filter to the proxy pipeline
 # whenever SwiftProxy.encryptionEnabled is set.
 castellan
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]

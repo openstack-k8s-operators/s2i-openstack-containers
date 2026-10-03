@@ -9,3 +9,6 @@ glance_store[swift]
 
 # Paste/PasteDeploy require pkg_resources, removed in setuptools 82
 setuptools==80.10.2
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]
