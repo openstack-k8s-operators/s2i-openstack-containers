@@ -5,3 +5,6 @@ oslo.cache[dogpile]
 # LDAP identity backend (keystone extra)
 python-ldap
 ldappool
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]

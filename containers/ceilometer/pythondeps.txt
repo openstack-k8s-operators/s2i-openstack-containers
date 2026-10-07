@@ -1,2 +1,5 @@
 # Caching backend
 oslo.cache[dogpile]
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]
