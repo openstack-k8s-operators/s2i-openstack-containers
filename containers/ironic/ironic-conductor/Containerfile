@@ -11,6 +11,7 @@ FROM ${BASE_IMAGE} AS build
 
 ARG SOURCE_VERSION_STREAM=master
 ARG PBR_VERSION_FROM_GIT=false
+ARG TARGETARCH=amd64
 
 ARG SERVICE_SRC=/src/ironic
 
@@ -103,6 +104,11 @@ RUN mkdir -p /configfiles/etc/ironic && \
 COPY ironic-conductor/extract-boot-assets.sh /tmp/extract-boot-assets.sh
 RUN bash /tmp/extract-boot-assets.sh && rm /tmp/extract-boot-assets.sh
 
+# Install kubectl — pinned and checksum-verified by artifacts.txt.
+COPY ironic-conductor/openshift-client-linux-${TARGETARCH}.tar.gz /tmp/openshift-client.tar.gz
+RUN tar -xzf /tmp/openshift-client.tar.gz -C /usr/local/bin oc kubectl && \
+    rm -f /tmp/openshift-client.tar.gz
+
 # --- Runtime stage: install from wheels ---
 FROM ${BASE_IMAGE}
 
@@ -129,6 +135,10 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       --find-links=/wheels/pkgs \
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
+
+# Install kubectl
+COPY --from=build /usr/local/bin/oc /usr/local/bin
+COPY --from=build /usr/local/bin/kubectl /usr/local/bin
 
 # Create required directories
 RUN mkdir -p /etc/ironic && \

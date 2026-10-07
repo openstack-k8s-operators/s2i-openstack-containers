@@ -25,3 +25,5 @@ dnf-plugins-core
 cpio
 dosfstools
 mtools
+# to install kubectl
+tar
