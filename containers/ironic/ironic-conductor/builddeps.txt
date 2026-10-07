@@ -25,3 +25,7 @@ dnf-plugins-core
 cpio
 dosfstools
 mtools
+# Build the OpenShift client (oc) from pinned upstream source
+golang
+krb5-devel
+make
