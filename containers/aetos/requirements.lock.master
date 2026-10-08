@@ -32,7 +32,7 @@ oslo-cache==4.3.0
 oslo-config==10.7.0
 oslo-context==6.5.0
 oslo-i18n==6.9.0
-oslo-log==8.3.1
+oslo-log==8.3.2
 oslo-middleware==8.2.0
 oslo-policy==6.0.1
 oslo-serialization==5.11.0

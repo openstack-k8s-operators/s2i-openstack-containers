@@ -17,7 +17,7 @@ setuptools-rust==1.13.0
 setuptools-scm==10.3.4
 tomlkit==0.15.1
 trove-classifiers==2026.9.21.13
-vcs-versioning==2.5.0
+vcs-versioning==2.6.0
 wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:
