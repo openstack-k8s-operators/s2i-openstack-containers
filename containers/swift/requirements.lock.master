@@ -35,7 +35,7 @@ oslo-concurrency==7.6.1
 oslo-config==10.7.0
 oslo-context==6.5.0
 oslo-i18n==6.9.0
-oslo-log==8.3.1
+oslo-log==8.3.2
 oslo-messaging==18.3.0
 oslo-metrics==0.17.0
 oslo-middleware==8.2.0

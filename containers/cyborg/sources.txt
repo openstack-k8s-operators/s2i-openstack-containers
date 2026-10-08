@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 568297f47d9960a0a4ba5466aca5fd8bdd0bbd15 -
-master cyborg https://opendev.org/openstack/cyborg.git stable/2026.2 ebe5bb1cfa6eb1f534b461a66652ef1c28243ebd 17.0.0.0rc2.dev3
+master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 0f4ec11eed11de1891d7bf30a4cd72f7032e411f -
+master cyborg https://opendev.org/openstack/cyborg.git stable/2026.2 ebe5bb1cfa6eb1f534b461a66652ef1c28243ebd 17.0.1.dev3

@@ -32,7 +32,7 @@ oslo-concurrency==7.6.1
 oslo-config==10.7.0
 oslo-context==6.5.0
 oslo-i18n==6.9.0
-oslo-log==8.3.1
+oslo-log==8.3.2
 oslo-serialization==5.11.0
 oslo-utils==10.2.0
 osprofiler==4.4.0

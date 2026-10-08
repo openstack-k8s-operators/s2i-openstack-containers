@@ -276,7 +276,7 @@ annotated-types===0.8.0
 pytest-xdist===3.8.0
 XStatic-JS-Yaml===3.13.1.2
 XStatic-term.js===0.0.7.1
-oslo.log===8.3.1
+oslo.log===8.3.2
 nodeenv===1.10.0
 gossip===2.5.0
 suds-community===1.2.0
@@ -547,7 +547,7 @@ backports.tarfile===1.2.0
 narwhals===2.24.0
 xvfbwrapper===0.2.29
 influxdb-client===1.50.0
-tosca-parser===2.14.0
+tosca-parser===2.15.0
 python-consul2===0.1.5
 charset-normalizer===3.5.0
 Flask===3.1.3
