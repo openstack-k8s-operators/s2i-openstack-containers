@@ -98,6 +98,17 @@ from ironic.api.wsgi import initialize_wsgi_app\n\
 application = initialize_wsgi_app()\n' > /configfiles/ironic-api-wsgi && \
     chmod 755 /configfiles/ironic-api-wsgi
 
+# Copy novnc files to /configfiles/usr/share/novnc/
+RUN mkdir -p /configfiles/usr/share/novnc && \
+    cp -a /src/novnc/app \
+          /src/novnc/core \
+          /src/novnc/vendor \
+          /src/novnc/vnc.html \
+          /src/novnc/vnc_lite.html \
+          /src/novnc/defaults.json \
+          /src/novnc/package.json \
+          /configfiles/usr/share/novnc/
+
 # --- Runtime stage: install from wheels ---
 FROM ${BASE_IMAGE}
 
@@ -153,5 +164,11 @@ RUN chmod 640 /etc/ironic/ironic.conf && \
 RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
     sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf 2>/dev/null || true && \
     usermod --append --groups apache ironic
+
+# novnc setup
+COPY --from=build /configfiles/usr/share/novnc /usr/share/novnc
+RUN chown -R root:root /usr/share/novnc && \
+    find /usr/share/novnc -type d -exec chmod 755 {} + && \
+    find /usr/share/novnc -type f -exec chmod 644 {} +
 
 USER ironic
