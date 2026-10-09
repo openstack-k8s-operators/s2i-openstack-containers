@@ -1,0 +1,34 @@
+#!/bin/bash
+# Copy pre-built wheels into the chroot and copy the constraints
+# file so that pip install commands inside the chroot (including the
+# unmodified 60-ironic-python-agent-ramdisk-install and
+# 80-extra-hardware-install) resolve packages from local wheels without
+# network access.
+#
+# This script runs OUTSIDE the chroot during the extra-data phase,
+# with $TMP_MOUNT_PATH pointing to the chroot filesystem on the host.
+
+if [ "${DIB_DEBUG_TRACE:-0}" -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+WHEELS_DIR="${DIB_IPA_WHEELS_DIR:-/wheels}"
+
+if [ -d "${WHEELS_DIR}" ]; then
+    echo "Copying pre-built wheels into chroot"
+    sudo mkdir -p $TMP_MOUNT_PATH/tmp/wheels
+    sudo cp -a ${WHEELS_DIR}/. $TMP_MOUNT_PATH/tmp/wheels/
+fi
+
+# Copy constraints file into the location expected by the IPA and
+# extra-hardware install scripts (/tmp/requirements/upper-constraints.txt
+# inside the chroot). This replaces the need for the requirements git
+# repo clone via source-repositories.
+CONSTRAINTS="${DIB_IPA_CONSTRAINTS_FILE:-/deps-upper-constraints.txt}"
+if [ -f "${CONSTRAINTS}" ]; then
+    echo "Copying constraints file into chroot"
+    sudo mkdir -p $TMP_MOUNT_PATH/tmp/requirements
+    sudo cp "${CONSTRAINTS}" $TMP_MOUNT_PATH/tmp/requirements/upper-constraints.txt
+fi

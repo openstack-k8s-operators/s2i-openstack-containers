@@ -1,0 +1,2 @@
+master upper-constraints https://opendev.org/openstack/requirements.git master 3d18c773440f6e000a33d6de67f05f95fe8e95e5 -
+master diskimage-builder https://review.opendev.org/openstack/diskimage-builder refs/changes/96/1007796/4 215888245e6e85cb74cac3879e59fad2b0680386 3.43.1.dev5
