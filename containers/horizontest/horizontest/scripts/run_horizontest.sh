@@ -34,8 +34,14 @@ if [[ -z "${ADMIN_PASSWORD}" ]]; then
 fi
 [[ -z ${DASHBOARD_URL} ]] && echo "DASHBOARD_URL not set" && exit 1
 [[ -z ${AUTH_URL} ]] && echo "AUTH_URL not set" && exit 1
-[[ -z ${REPO_URL} ]] && REPO_URL="https://review.opendev.org/openstack/horizon"
-[[ -z ${HORIZON_REPO_BRANCH} ]] && HORIZON_REPO_BRANCH="master"
+# Default test tree is baked from sources.txt (same Horizon SHA as the
+# dashboard image). The test-operator CRD still defaults repoUrl to
+# review.opendev.org and horizonRepoBranch to master; treat that pair as
+# "use the image pin". Clone at runtime only for a real CR override:
+# internal git, or a branch other than master.
+DEFAULT_REPO_URL="https://review.opendev.org/openstack/horizon"
+BAKED_HORIZON="/usr/share/horizontest/horizon"
+[[ -z ${REPO_URL} ]] && REPO_URL="${DEFAULT_REPO_URL}"
 
 function catch_error_if_debug {
     echo "File run_horizontest.sh has run into an error!"
@@ -123,30 +129,56 @@ function delete_custom_resources {
 }
 
 pushd ${HORIZONTEST_DIR}
-GIT_CMD_ARGS=()
-if [[ ${REPO_URL} == *redhat.com* ]]; then
-    GIT_CMD_ARGS+=(-c http.sslVerify=false)
-fi
 
-_trial=0
-_limit=5
-_delay=30
-
-GIT_CLONE_CMD=(git "${GIT_CMD_ARGS[@]}" clone "${REPO_URL}" "${HORIZONTEST_DIR}/horizon")
-
-until ("${GIT_CLONE_CMD[@]}"); do
-    if [ "${_trial}" -lt "${_limit}" ]; then
-        _trial=$(( _trial + 1 ))
-        echo "Git clone failed; retrying in ${_delay} seconds..."
-        sleep "${_delay}"
-    else
-        exit 1
+use_baked_horizon_tests() {
+    [[ -d "${BAKED_HORIZON}" ]] || return 1
+    # Clone when the CR points at a different git host (fork, internal
+    # git, etc.). The historical CRD default matches DEFAULT_REPO_URL.
+    if [[ "${REPO_URL}" != "${DEFAULT_REPO_URL}" ]]; then
+        return 1
     fi
-done
-chown -R horizontest:horizontest horizon
+    # Unset or the historical CRD default (master) means "no override".
+    if [[ -n "${HORIZON_REPO_BRANCH}" && "${HORIZON_REPO_BRANCH}" != "master" ]]; then
+        return 1
+    fi
+    return 0
+}
+
+if use_baked_horizon_tests; then
+    echo "Using Horizon tests from image pin (${BAKED_HORIZON})"
+    rm -rf "${HORIZONTEST_DIR}/horizon"
+    cp -a "${BAKED_HORIZON}" "${HORIZONTEST_DIR}/horizon"
+else
+    [[ -z ${HORIZON_REPO_BRANCH} ]] && HORIZON_REPO_BRANCH="master"
+    echo "Cloning Horizon tests from ${REPO_URL} branch ${HORIZON_REPO_BRANCH}"
+    GIT_CMD_ARGS=()
+    if [[ ${REPO_URL} == *redhat.com* ]]; then
+        GIT_CMD_ARGS+=(-c http.sslVerify=false)
+    fi
+
+    _trial=0
+    _limit=5
+    _delay=30
+
+    GIT_CLONE_CMD=(git "${GIT_CMD_ARGS[@]}" clone "${REPO_URL}" "${HORIZONTEST_DIR}/horizon")
+
+    until ("${GIT_CLONE_CMD[@]}"); do
+        if [ "${_trial}" -lt "${_limit}" ]; then
+            _trial=$(( _trial + 1 ))
+            echo "Git clone failed; retrying in ${_delay} seconds..."
+            sleep "${_delay}"
+        else
+            exit 1
+        fi
+    done
+    chown -R horizontest:horizontest horizon
+    pushd horizon
+    git "${GIT_CMD_ARGS[@]}" pull --rebase
+    git checkout ${HORIZON_REPO_BRANCH}
+    popd
+fi
+chown -R horizontest:horizontest "${HORIZONTEST_DIR}/horizon"
 pushd horizon
-git "${GIT_CMD_ARGS[@]}" pull --rebase
-git checkout ${HORIZON_REPO_BRANCH}
 
 clean_leftover_images
 create_custom_resources

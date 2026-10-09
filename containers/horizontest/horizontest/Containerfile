@@ -61,6 +61,11 @@ RUN chmod 440 /etc/sudoers.d/horizontest_sudoers
 RUN mkdir -p /var/lib/horizontest/external_files && \
     chown -R horizontest:horizontest /var/lib/horizontest
 
+# Bake the Horizon test tree from sources.txt so the default run matches
+# the dashboard pin. build.sh clones it to src/horizontest (sources.txt name).
+COPY src/horizontest /usr/share/horizontest/horizon
+RUN chown -R horizontest:horizontest /usr/share/horizontest
+
 COPY horizontest/scripts/run_horizontest.sh /usr/local/bin/run_horizontest.sh
 RUN chmod +x /usr/local/bin/run_horizontest.sh
 
