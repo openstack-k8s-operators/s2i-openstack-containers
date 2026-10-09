@@ -8,12 +8,6 @@
       python_version: "3.12"
       tox_envlist: molecule
 
-- nodeset:
-    name: s2i-openstack-containers-image-builder
-    nodes:
-      - name: builder
-        label: cloud-centos-10-stream
-
 - job:
     name: s2i-openstack-container-content-provider
     parent: base
@@ -23,7 +17,7 @@
       child jobs can select a subset, use auto-detect for speculative
       rebuilds, and add related required projects.
     timeout: 7200
-    nodeset: s2i-openstack-containers-image-builder
+    nodeset: s2i-openstack-containers-image-builder-small
     semaphores: s2i-builder
     required-projects:
       - github.com/openstack-k8s-operators/s2i-openstack-containers

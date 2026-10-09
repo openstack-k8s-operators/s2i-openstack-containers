@@ -1,0 +1,12 @@
+---
+- nodeset:
+    name: s2i-openstack-containers-image-builder
+    nodes:
+      - name: builder
+        label: cloud-centos-10-stream
+
+- nodeset:
+    name: s2i-openstack-containers-image-builder-small
+    nodes:
+      - name: builder
+        label: cloud-centos-10-stream-tripleo-medium
