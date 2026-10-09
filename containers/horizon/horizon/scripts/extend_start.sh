@@ -26,7 +26,7 @@ if [[ "${!KOLLA_BOOTSTRAP[@]}" ]]; then
     exit 0
 fi
 
-function config_dashboard {
+config_dashboard() {
     ENABLE=$1
     SRC=$2
     DEST=$3
@@ -42,7 +42,7 @@ function config_dashboard {
     fi
 }
 
-function config_designate_dashboard {
+config_designate_dashboard() {
     for file in ${SITE_PACKAGES}/designatedashboard/enabled/_*[^__].py; do
         config_dashboard "${ENABLE_DESIGNATE}" \
             "${SITE_PACKAGES}/designatedashboard/enabled/${file##*/}" \
@@ -50,7 +50,7 @@ function config_designate_dashboard {
     done
 }
 
-function config_heat_dashboard {
+config_heat_dashboard() {
     for file in ${SITE_PACKAGES}/heat_dashboard/enabled/_*[^__].py; do
         config_dashboard "${ENABLE_HEAT}" \
             "${SITE_PACKAGES}/heat_dashboard/enabled/${file##*/}" \
@@ -62,7 +62,7 @@ function config_heat_dashboard {
         "/etc/openstack-dashboard/heat_policy.json"
 }
 
-function config_ironic_dashboard {
+config_ironic_dashboard() {
     for file in ${SITE_PACKAGES}/ironic_ui/enabled/_*[^__].py; do
         config_dashboard "${ENABLE_IRONIC}" \
             "${SITE_PACKAGES}/ironic_ui/enabled/${file##*/}" \
@@ -70,7 +70,7 @@ function config_ironic_dashboard {
     done
 }
 
-function config_manila_ui {
+config_manila_ui() {
     for file in ${SITE_PACKAGES}/manila_ui/local/enabled/_*[^__].py; do
         config_dashboard "${ENABLE_MANILA}" \
             "${SITE_PACKAGES}/manila_ui/local/enabled/${file##*/}" \
@@ -78,13 +78,13 @@ function config_manila_ui {
     done
 }
 
-function config_octavia_dashboard {
+config_octavia_dashboard() {
     config_dashboard "${ENABLE_OCTAVIA}" \
         "${SITE_PACKAGES}/octavia_dashboard/enabled/_1482_project_load_balancer_panel.py" \
         "${SITE_PACKAGES}/openstack_dashboard/local/enabled/_1482_project_load_balancer_panel.py"
 }
 
-function config_watcher_dashboard {
+config_watcher_dashboard() {
     # Do nothing if the watcher-dashboard is not installed
     if [ -d ${SITE_PACKAGES}/watcher_dashboard ] ; then
         for file in ${SITE_PACKAGES}/watcher_dashboard/local/enabled/_*[^__].py; do
@@ -95,7 +95,7 @@ function config_watcher_dashboard {
     fi
 }
 
-function config_cloudkitty_dashboard {
+config_cloudkitty_dashboard() {
     # Do nothing if the cloudkitty-dashboard is not installed
     if [ -d ${SITE_PACKAGES}/cloudkittydashboard ] ; then
         for file in ${SITE_PACKAGES}/cloudkittydashboard/enabled/_*[^__].py; do
@@ -109,14 +109,14 @@ function config_cloudkitty_dashboard {
 # Regenerate the compressed javascript and css if any configuration files have
 # changed.  Use a static modification date when generating the tarball
 # so that we only trigger on content changes.
-function settings_bundle {
+settings_bundle() {
     tar -cf- --mtime=1970-01-01 \
         /etc/openstack-dashboard/local_settings \
         /etc/openstack-dashboard/custom_local_settings \
         /etc/openstack-dashboard/local_settings.d 2> /dev/null
 }
 
-function settings_changed {
+settings_changed() {
     changed=1
 
     if [[ ! -f $HASH_PATH  ]] || ! settings_bundle | md5sum -c --status $HASH_PATH || [[ $FORCE_GENERATE == yes ]]; then
