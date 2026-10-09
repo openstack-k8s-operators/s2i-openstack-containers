@@ -91,6 +91,7 @@ packages:
   - qemu-img
   - rust
   - shim
+  - tar
   - util-linux
   - which
   - xfsprogs
