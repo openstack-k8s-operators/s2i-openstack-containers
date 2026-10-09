@@ -5,6 +5,8 @@
       - watcher-operator-s2i-component-jobs
       - horizon-operator-s2i-component-jobs
       - nova-operator-s2i-component-jobs
+      - keystone-operator-s2i-component-jobs
+      - barbican-operator-s2i-component-jobs
     github-check:
       jobs:
         - s2i-openstack-containers-molecule:
