@@ -39,7 +39,7 @@ module_hotfixes=1
 # epel is required for Ceph Tentacle and DLRN mock
 [epel-low-priority]
 name=Extra Packages for Enterprise Linux $releasever - $basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-$releasever&arch=$basearch&infra=$infra&content=$contentdir
+baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/
 enabled=1
 gpgcheck=0
 countme=1
