@@ -1,0 +1,33 @@
+ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
+
+# --- Build stage: download the amphora image ---
+FROM ${BASE_IMAGE} AS build
+
+COPY builddeps.txt /tmp/builddeps.txt
+RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
+
+ARG AMPHORA_IMAGE_URL=https://tarballs.opendev.org/openstack/octavia/test-images/test-only-amphora-x64-haproxy-centos-10-stream.qcow2
+RUN mkdir -p /images
+WORKDIR /images
+RUN curl -fSL -O "${AMPHORA_IMAGE_URL}" && \
+    sha256sum *.qcow2 > octavia-amphora-image.sha256sum
+
+# --- Runtime stage ---
+FROM ${BASE_IMAGE}
+
+LABEL summary="OpenStack Octavia Amphora Image" \
+      io.k8s.description="Ships a pre-built amphora qcow2 image and copies it to a volume mountpoint"
+
+COPY --from=build /images/*.qcow2 /images/
+COPY --from=build /images/octavia-amphora-image.sha256sum /images/
+COPY octavia-amphora-image/scripts/copy_script.sh /usr/local/bin/copy_script.sh
+RUN chmod 755 /usr/local/bin/copy_script.sh
+
+RUN mkdir -p /target && touch /target/.notmounted
+
+VOLUME /target/
+
+USER nobody
+
+CMD ["/usr/local/bin/copy_script.sh"]
