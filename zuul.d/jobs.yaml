@@ -163,6 +163,12 @@
       Depends on the content provider (paused registry and artifacts)
       and on ``s2i-openstack-container-consumer-smoke`` so a broken
       publish/mapping contract skips this CRC/EDPM job.
+    # <DNM> Runs after the child job's own work and before the parent
+    # post-run playbooks that collect logs, so the whole deployment and
+    # tempest run happens first and the logs are still published. The
+    # resulting POST_FAILURE is enough for a Zuul autohold request to
+    # hold the nodeset. Drop this line before merging.
+    post-run: playbooks/container-ci/zuul/dnm-hold.yaml
     vars:
       s2i_cinder_volume_backends: ['volume1']
       s2i_manila_share_backends: ['share1']
