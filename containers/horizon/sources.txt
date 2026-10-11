@@ -1,6 +1,6 @@
 # <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>  version
-master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 0f4ec11eed11de1891d7bf30a4cd72f7032e411f -
-master horizon https://opendev.org/openstack/horizon.git stable/2026.2 5bfe59196bbffa8f689924b98241eab630675d1b 27.0.1.dev6
+master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 bab6cd8e3b9a5ac61b98aa7016c7d98b3000a8ac -
+master horizon https://opendev.org/openstack/horizon.git stable/2026.2 0448dba996d083f57b15502cd511e1599ed12ea2 27.0.1.dev8
 master heat-dashboard https://opendev.org/openstack/heat-dashboard.git stable/2026.2 263d86a4a9a1219b03cca9db8bd54db9a64a9e24 16.0.1.dev1
 master ironic-ui https://opendev.org/openstack/ironic-ui.git stable/2026.2 5ea0995afe5fad346a8cca1b5911593d64df8353 6.9.1.dev2
 master manila-ui https://opendev.org/openstack/manila-ui.git stable/2026.2 f4dfaacb565866b8270814056f92226989dd68fc 16.0.1.dev2
