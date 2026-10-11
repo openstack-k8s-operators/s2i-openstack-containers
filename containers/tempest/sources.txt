@@ -1,5 +1,5 @@
-master upper-constraints https://opendev.org/openstack/requirements.git master c8e289a3af0675e33270d1ecd9ae8dcc208d6fbf -
-master tempest https://opendev.org/openstack/tempest.git master 04228933e90df8dfd7440379b431e24d0b966f44 47.0.1.dev17
+master upper-constraints https://opendev.org/openstack/requirements.git master 6a1e5de6e9c73511e6702c1c3bf93a8fd743869f -
+master tempest https://opendev.org/openstack/tempest.git master 0638a4917accd898b1707dd50740e28daf0cc789 47.0.1.dev26
 master python-tempestconf https://opendev.org/openstack/python-tempestconf.git master 66ea243053f2b7a0abc015164baa4a338d4a2621 3.5.4
 master barbican-tempest-plugin https://opendev.org/openstack/barbican-tempest-plugin.git master f370cf0ee9e72ada0f48bf80360b7de851444b8e 4.6.1.dev2
 master cinder-tempest-plugin https://opendev.org/openstack/cinder-tempest-plugin.git master d4894b4df9916d5f7b1968a4e3093f40af4eed44 1.23.0
@@ -12,7 +12,7 @@ master ironic-tempest-plugin https://opendev.org/openstack/ironic-tempest-plugin
 master keystone-tempest-plugin https://opendev.org/openstack/keystone-tempest-plugin.git master 0266d55ff82ebd7b3a4c91f726e67a2bf4868afb 0.22.1.dev1
 master manila-tempest-plugin https://opendev.org/openstack/manila-tempest-plugin.git master 1e4edd9c79c49b497352b62ad07256fc71adbc2b 3.2.1.dev4
 master networking-l2gw-tempest-plugin https://opendev.org/x/networking-l2gw-tempest-plugin.git master 26df011d60383b8a885cbf831cecb1743333fefb 0.1.1.dev24
-master neutron-tempest-plugin https://opendev.org/openstack/neutron-tempest-plugin.git master 7e0d9eaccdf8e37f52aa448843cd4ff5e41618a8 3.3.1.dev11
+master neutron-tempest-plugin https://opendev.org/openstack/neutron-tempest-plugin.git master f79a255a9d622c1a59adee38434b08147357ab9e 3.3.1.dev12
 master octavia-tempest-plugin https://opendev.org/openstack/octavia-tempest-plugin.git master e4d8779947765dcb6ef34cf052497fe0315fa71f 3.5.1.dev4
 master telemetry-tempest-plugin https://opendev.org/openstack/telemetry-tempest-plugin.git master 0037426bafafd4b6cf0926f17ae601620643b887 2.11.1.dev3
 master watcher-tempest-plugin https://opendev.org/openstack/watcher-tempest-plugin.git master 0889990c91de9d71ebb1b41527206448d0796cc0 3.9.1.dev5

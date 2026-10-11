@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 0f4ec11eed11de1891d7bf30a4cd72f7032e411f -
+master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 bab6cd8e3b9a5ac61b98aa7016c7d98b3000a8ac -
 master watcher https://opendev.org/openstack/watcher.git stable/2026.2 fabe43e9d4a244d08604c3eed41fb48149bd80b3 17.0.1.dev8
