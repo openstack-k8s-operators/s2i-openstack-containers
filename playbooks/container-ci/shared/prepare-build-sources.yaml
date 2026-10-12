@@ -1,0 +1,21 @@
+---
+# Resolve build targets and stage Zuul source checkouts before build.sh build.
+#
+# Required variables:
+#   s2i_ci_container_repo     - path to the s2i-openstack-containers checkout
+#   s2i_ci_workspace_root     - Zuul workspace root
+#   s2i_ci_stream             - stream name (e.g. "master")
+#   s2i_ci_target_expression  - build.sh target expression (e.g. "all")
+
+- name: Resolve selected image targets for source staging
+  ansible.builtin.command:
+    argv:
+      - "{{ s2i_ci_container_repo }}/build.sh"
+      - resolve
+      - "{{ s2i_ci_target_expression }}"
+    chdir: "{{ s2i_ci_container_repo }}"
+  register: s2i_ci_resolved_images
+  changed_when: false
+
+- name: Stage Zuul source checkouts before build
+  ansible.builtin.include_tasks: stage-zuul-sources.yaml

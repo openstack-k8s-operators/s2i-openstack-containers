@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: bashate
         name: bashate (build.sh)
-        files: ^build\.sh$
+        files: ^(build\.sh|scripts/create-zuul-required-projects\.sh)$
         args:
           - --error
           - .
