@@ -1,0 +1,69 @@
+ARG EDPM_BASE_IMAGE=quay.io/centos-bootc/centos-bootc:stream10
+
+# Generate repository configuration separately so repo-setup tooling does not
+# become part of the bootc host image.
+FROM ${EDPM_BASE_IMAGE} AS repo-setup
+
+ARG REPO_SETUP_COMMIT=85321f7e0af502d7f06f845886058daf09da34f6
+ARG REPO_SETUP_SHA256=1050e4ed0472098165c4bde84a9991a6a13171426d16862f6651e28635d1727f
+ARG REPO_SETUP="ceph deps"
+ARG REPO_SETUP_BRANCH=antelope
+ARG REPO_SETUP_DISTRO=centos10
+ARG REPO_SETUP_EXTRA="echo Done"
+
+RUN dnf -y install curl python3 python3-pip tar && dnf clean all
+COPY repo-setup/ /usr/local/lib/edpm-repo-setup/
+WORKDIR /tmp/repo-setup-work
+RUN mkdir -p output/yum.repos.d && \
+    REPO_SETUP_COMMIT=${REPO_SETUP_COMMIT} \
+    REPO_SETUP_SHA256=${REPO_SETUP_SHA256} \
+    bash /usr/local/lib/edpm-repo-setup/install-repo-setup.sh && \
+    REPO_SETUP=${REPO_SETUP} \
+    REPO_SETUP_BRANCH=${REPO_SETUP_BRANCH} \
+    REPO_SETUP_DISTRO=${REPO_SETUP_DISTRO} \
+    REPO_SETUP_EXTRA="${REPO_SETUP_EXTRA}" \
+    bash /usr/local/lib/edpm-repo-setup/run-repo-setup.sh
+
+FROM ${EDPM_BASE_IMAGE}
+
+COPY --from=repo-setup /tmp/repo-setup-work/output/yum.repos.d/ /tmp/edpm-yum.repos.d/
+
+# EDPM host packages (from the EDPM bootstrap and DIB elements).
+ARG USER_PACKAGES=""
+ARG ENABLE_UNITS="openvswitch"
+
+COPY bindeps.txt /tmp/bindeps.txt
+RUN --mount=type=secret,id=rhsm,dst=/var/tmp/rhsm-script.sh \
+    DNF_REPO_ARGS="--setopt=reposdir=/tmp/edpm-yum.repos.d" && \
+    if [ -f /var/tmp/rhsm-script.sh ]; then \
+      bash /var/tmp/rhsm-script.sh && DNF_REPO_ARGS=""; \
+    fi && \
+    packages=$(grep -v '^#' /tmp/bindeps.txt | grep -v '^$' | tr '\n' ' ') && \
+    dnf -y ${DNF_REPO_ARGS} install ${packages} ${USER_PACKAGES} && \
+    . /etc/os-release && if [ "${ID}" = "rhel" ]; then dnf -y ${DNF_REPO_ARGS} install rhoso-release; fi && \
+    dnf -y remove dracut-config-generic && \
+    dnf clean all && \
+    (subscription-manager remove --all || true) && \
+    (subscription-manager unregister || true) && \
+    systemctl enable ${ENABLE_UNITS} && \
+    rm -rf /tmp/bindeps.txt /tmp/edpm-yum.repos.d
+
+# Configure FIPS.
+ARG FIPS=1
+RUN if [ "${FIPS}" = "1" ]; then \
+      update-crypto-policies --no-reload --set FIPS && \
+      touch /etc/system-fips && \
+      mkdir -p /usr/lib/bootc/kargs.d && \
+      printf '# Enable FIPS\nkargs = ["fips=1"]\n' > /usr/lib/bootc/kargs.d/01-fips.toml; \
+    fi
+
+# Drop the Ansible fact into place.
+COPY edpm-bootc/ansible-facts/bootc.fact /etc/ansible/facts.d/bootc.fact
+RUN chmod +x /etc/ansible/facts.d/bootc.fact
+
+# Disable automatic update check and reboot.
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
+# This should be the last command.
+# https://docs.fedoraproject.org/en-US/bootc/building-containers/#_linting
+RUN bootc container lint
