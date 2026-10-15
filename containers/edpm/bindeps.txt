@@ -1,0 +1,81 @@
+# edpm_bootstrap
+driverctl
+lvm2
+# crudini
+jq
+nftables
+NetworkManager
+# (TODO) add back openstack-selinux
+# openstack-selinux
+python3-libselinux
+python3-pyyaml
+rsync
+tmpwatch
+sysstat
+iproute-tc
+ksmtuned
+systemd-container
+crypto-policies-scripts
+grubby
+# openstack-network-scripts
+sos
+
+# dib/ceph
+bind-utils
+cephadm
+
+# dib/edpm-base
+device-mapper-multipath
+iptables-services
+numactl
+
+# dib/ironic-agent-multipath
+iscsi-initiator-utils
+
+# edpm_logrotate_crond
+cronie
+
+# edpm_network_config
+# os-net-config
+NetworkManager-ovs
+
+# install_os
+chrony
+
+# edpm_ovs
+openvswitch3.5
+
+# edpm_podman
+buildah
+podman
+
+# edpm_reboot
+yum-utils
+
+# edpm_sshd
+openssh-server
+
+# edpm_tuned
+tuned
+tuned-profiles-cpu-partitioning
+
+# cloud-init
+cloud-init
+
+# libvirt, virtual TPM, and firmware
+libvirt
+libvirt-admin
+libvirt-client
+libvirt-daemon
+qemu-kvm
+qemu-img
+libseccomp
+swtpm
+swtpm-tools
+edk2-ovmf
+ceph-common
+cyrus-sasl-scram
+
+# Telemetry logging and NVMe-oF
+rsyslog-openssl
+nvme-cli
