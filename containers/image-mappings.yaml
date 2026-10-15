@@ -5,6 +5,8 @@
 #
 # Intentionally unmapped:
 # - base -- not a service image
+# - edpm/edpm-bootc -- host operating-system image, selected through the EDPM
+#   bare-metal node OS image fields rather than service container image fields
 # - cyborg/* -- not wired into the default control plane yet
 # - tempest, ansible-test -- test images, not control-plane services
 # - cinder/cinder-volume, manila/manila-share -- OpenStackVersion stores

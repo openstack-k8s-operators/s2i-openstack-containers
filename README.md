@@ -4,6 +4,8 @@ Source-to-image container builds for OpenStack services on UBI 10
 (`ubi-minimal`). Service code is built from pinned upstream Git sources with
 Python dependencies constrained by generated lock files.
 
+The repository also builds the EDPM bootc host OS image.
+
 The repository currently builds:
 
 - `openstack-ansible-test`;
@@ -23,6 +25,7 @@ The repository currently builds:
 - `openstack-designate-backend-bind9`;
 - `openstack-designate-central`;
 - `openstack-designate-worker`;
+- `openstack-edpm-bootc`;
 - `openstack-glance-api`;
 - `openstack-goose`;
 - `openstack-heat-api`;
@@ -89,6 +92,12 @@ Build all images from the maintained `master` source pins:
 
 ```console
 STREAM=master tox -e build
+```
+
+Build only the EDPM bootc host image:
+
+```console
+./build.sh build edpm/edpm-bootc
 ```
 
 Run the current test and lint environments:

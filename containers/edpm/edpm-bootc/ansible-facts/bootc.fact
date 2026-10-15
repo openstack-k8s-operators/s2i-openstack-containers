@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+BOOTC_SYSTEM="false"
+BOOTC_PACKAGE=$(rpm -qa | grep bootc)
+
+# If the system isn't using bootc, we can exit early here since the
+# RPM wont be installed.
+if [[ $BOOTC_PACKAGE == "" ]]; then
+  echo ${BOOTC_SYSTEM}
+  exit
+fi
+
+is_bootc() {
+  BOOTC_STATUS=$(sudo bootc status --json | jq .status.type)
+  if [[ "$BOOTC_STATUS" == \"bootcHost\" ]]; then
+    BOOTC_SYSTEM="true"
+    return
+  fi
+
+  # Fallback: if bootc status type is set to nil for some reasons like
+  # rpm-ostree install, or bootc is not able to confirm that the system is
+  # not bootc anymore
+  # NOTE: rpm-ostree install should not be allowed in production systems.
+  if [[ -d /sysroot/ostree/bootc ]] || [[ -d /ostree/bootc ]]; then
+    BOOTC_SYSTEM="true"
+  fi
+}
+
+is_bootc
+
+echo ${BOOTC_SYSTEM}
