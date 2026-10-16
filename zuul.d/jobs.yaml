@@ -25,6 +25,13 @@
     pre-run: playbooks/container-ci/zuul/pre.yaml
     run: playbooks/container-ci/zuul/run.yaml
     post-run: playbooks/container-ci/zuul/post.yaml
+    irrelevant-files:
+      - ^\..*
+      - ^docs?/
+      - ^tests?/
+      - ^.*\.md$
+      - ^OWNERS
+      - ^LICENSE
     vars:
       s2i_ci_container_project: >-
         github.com/openstack-k8s-operators/s2i-openstack-containers
