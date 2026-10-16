@@ -91,6 +91,7 @@ python-manilaclient==6.3.0
 python-memcached==1.62
 python-observabilityclient==1.4.0
 python-openstackclient==10.3.0
+pytz-deprecation-shim==0.1.0.post0
 pyyaml==6.0.3
 redis==8.1.0
 referencing==0.37.0
