@@ -488,6 +488,19 @@ Both `update-sources` and `update-lockfiles` will still generate
 skip all lockfile-related steps. Builds for these projects skip source
 cloning and constraints entirely.
 
+The `edpm/edpm-bootc` image is a bootc based OS image; it does not use
+`openstack-base`. Its Containerfile defaults to the CentOS Stream 10 bootc base.
+Use `BUILD_FLAGS` to pass buildah-specific options or build arguments when
+selecting another base, configuring repository setup, mounting trusted host
+certificates, or supplying the optional RHSM secret.
+For example:
+
+```bash
+BUILD_FLAGS='--build-arg EDPM_BASE_IMAGE=quay.io/centos-bootc/centos-bootc:stream10 \
+  --build-arg REPO_SETUP_DISTRO=centos9' \
+  ./build.sh build edpm/edpm-bootc
+```
+
 ### Building images
 
 ```bash
@@ -722,6 +735,8 @@ Two-stage build:
 | `TAG` | `${STREAM}-latest` | Image tag(s), comma-separated for multiple |
 | `IMAGE_PREFIX` | `openstack` | Prefix for image names (e.g., `openstack-watcher`) |
 | `BASE_IMAGE` | `${REGISTRY}/${NAMESPACE}/${IMAGE_PREFIX}-base:${TAG}` | Base image for service builds |
+| `BUILD_FLAGS` | *(unset)* | Additional whitespace-separated options passed to every `buildah bud` invocation, such as `--build-arg`, `--secret`, and `--volume` |
+| `BUILD_FLAGS_FILE` | *(unset)* | File containing one buildah argument per line; use for option values containing spaces |
 | `CONSTRAINTS_FILE` | `requirements.lock` | Lockfile base name used during builds |
 | `BUILD_CONSTRAINTS_FILE` | `buildrequirements.lock` | Build-requirements lockfile base name |
 | `DEFAULT_STREAM` | `master` | Stream for which un-suffixed symlinks are created |
@@ -750,6 +765,16 @@ default branch. Linters always run. Manual `workflow_dispatch` runs everything.
 
 When build or push runs, **all** images are built together so every container
 for a commit shares the same `master-<sha>` tag and consistent OS packages.
+
+Pull-request image builds use Zuul's `github-check` pipeline. The
+`s2i-openstack-container-content-provider` job runs for changes outside the
+irrelevant docs/Markdown/`LICENSE*`/`.github` paths and defaults to
+`s2i_ci_images: all`.
+`build.sh` resolves `all` from every discovered Containerfile under
+`containers/`, so changes to `containers/edpm/edpm-bootc/Containerfile`, its
+RPM dependency list, or its repo-setup scripts build the bootc image along with
+the other maintained targets. GitHub Actions' `build-and-push` workflow is
+separate: it builds and publishes all images on pushes to `main`, not on PRs.
 
 ## Adding a new service
 
