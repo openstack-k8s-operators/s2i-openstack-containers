@@ -31,3 +31,10 @@
             dependencies:
               - s2i-openstack-container-content-provider
               - s2i-openstack-container-consumer-smoke
+        - watcher-operator-validation-master:
+            # DNM: force CS10 EDPM nodes back to SELinux enforcing so this
+            # debug run reproduces the live/cold migration failure instead
+            # of being masked by ci-framework's permissive workaround
+            # (be36d12c). Depends on ci-framework#4261 for the override var.
+            vars:
+              cifmw_hook_fetch_compute_facts_edpm_selinux_mode: enforcing
