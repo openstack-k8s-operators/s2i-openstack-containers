@@ -107,6 +107,9 @@ tox -e linters
 - [`docs/operator-onboarding.md`](docs/operator-onboarding.md) is the playbook
   for wiring a speculative deploy+test job on an operator repository.
 - [`docs/TESTING.md`](docs/TESTING.md) provides a concise testing entry point.
+- [`docs/testing-opendev-patches.md`](docs/testing-opendev-patches.md)
+  explains how to build and deploy an image that includes an unmerged
+  OpenDev change.
 
 ## Publication
 

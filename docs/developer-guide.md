@@ -3,7 +3,10 @@
 This guide documents the repository's current build, source-maintenance, and
 contributor workflows. For a concise project introduction, see the root
 [`README.md`](../README.md). For a short testing entry point, see
-[`TESTING.md`](TESTING.md). For dropping unwanted upstream dependencies, see
+[`TESTING.md`](TESTING.md). To build and deploy an image that includes an
+unmerged OpenDev change, see
+[`testing-opendev-patches.md`](testing-opendev-patches.md). For dropping
+unwanted upstream dependencies, see
 [`excluding-requirements.md`](excluding-requirements.md). To wire a live
 deploy+test job on an operator repository, see
 [`operator-onboarding.md`](operator-onboarding.md).
