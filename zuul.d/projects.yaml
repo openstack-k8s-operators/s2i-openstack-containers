@@ -4,6 +4,7 @@
     templates:
       - barbican-operator-s2i-component-jobs
       - cinder-operator-s2i-component-jobs
+      - designate-operator-s2i-component-jobs
       - glance-operator-s2i-component-jobs
       - horizon-operator-s2i-component-jobs
       - ironic-operator-s2i-component-jobs
