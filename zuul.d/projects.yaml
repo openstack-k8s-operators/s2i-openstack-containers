@@ -11,6 +11,7 @@
       - manila-operator-s2i-component-jobs
       - nova-operator-s2i-component-jobs
       - swift-operator-s2i-component-jobs
+      - test-operator-s2i-component-jobs
       - watcher-operator-s2i-component-jobs
     github-check:
       jobs:
