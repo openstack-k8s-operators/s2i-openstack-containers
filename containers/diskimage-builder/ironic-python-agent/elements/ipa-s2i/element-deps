@@ -1,0 +1,10 @@
+dnf-assert
+dynamic-login
+extra-hardware
+redhat-common
+redhat-reset-bls-entries
+rpm-distro
+source-repositories
+systemd-machine-id
+tarball
+ironic-agent-multipath
