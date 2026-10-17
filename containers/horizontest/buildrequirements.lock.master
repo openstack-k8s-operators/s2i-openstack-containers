@@ -19,7 +19,7 @@ semantic-version==2.10.0
 setuptools-rust==1.13.0
 setuptools-scm==10.3.4
 setuptools-scm==7.1.0
-tomlkit==0.15.1
+tomlkit==0.15.2
 trove-classifiers==2026.9.21.13
 typing-extensions==4.16.0
 vcs-versioning==2.6.0
