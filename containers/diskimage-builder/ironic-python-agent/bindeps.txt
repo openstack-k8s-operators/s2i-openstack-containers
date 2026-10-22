@@ -14,10 +14,15 @@
 # DIB element: ironic-python-agent-ramdisk-base
 dosfstools
 e2fsprogs
-gdisk
 parted
 util-linux
 xfsprogs
+
+# === GPT partitioning (sgdisk built from source, see Containerfile) ===
+# Runtime shared libraries for sgdisk, which is compiled from source
+# because the gdisk RPM is not available in RHEL-10
+libuuid
+popt
 
 # === RAID management ===
 # IPA source: hardware.py, raid_utils.py

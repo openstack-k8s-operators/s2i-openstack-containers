@@ -1,0 +1,8 @@
+# Build dependencies for compiling sgdisk from source
+# (gdisk RPM is not available in RHEL-10)
+gcc-c++
+libuuid
+libuuid-devel
+make
+popt
+popt-devel
