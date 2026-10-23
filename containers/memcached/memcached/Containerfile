@@ -4,6 +4,8 @@ FROM ${BASE_IMAGE}
 LABEL summary="OpenStack Memcached" \
       io.k8s.description="Memcached caching service for OpenStack"
 
+# DNM: noop to exercise s2i_ci_images: changes (PR #172). Do not merge.
+
 RUN uid_gid_manage memcached
 
 COPY memcached/bindeps.txt /tmp/bindeps.txt
