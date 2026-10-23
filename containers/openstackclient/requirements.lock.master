@@ -51,7 +51,6 @@ pyparsing==3.3.2
 pyperclip==1.11.0
 python-barbicanclient==7.6.0
 python-cloudkittyclient==6.2.0
-python-cyborgclient==3.0.0
 python-dateutil==2.9.0.post0
 python-designateclient==7.0.0
 python-glanceclient==4.13.0

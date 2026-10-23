@@ -12,7 +12,6 @@ python-observabilityclient
 aodhclient
 python-watcherclient
 python-cloudkittyclient
-python-cyborgclient
 # Required by the instanceha service
 python-novaclient
 prometheus_client
