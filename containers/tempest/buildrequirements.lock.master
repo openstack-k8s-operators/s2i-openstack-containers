@@ -30,3 +30,4 @@ wheel==0.48.0
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==84.0.0
+setuptools==84.2.0
