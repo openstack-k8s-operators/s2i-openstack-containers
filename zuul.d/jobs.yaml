@@ -131,13 +131,23 @@
       It is possible to extend it with additional mapping,
       for example for cinder-volume and manila-share.
     required-projects: *s2i_test_base_requiredprojects
-    vars:
+    vars: &s2i_test_base_ceph_vars
       <<: *s2i_test_base_vars
       cifmw_services_manila_enabled: false
       s2i_extras_base:
         - '@scenarios/centos-10/base.yml'
         - '@scenarios/centos-10/multinode-ci.yml'
         - '@scenarios/centos-10/hci_ceph_backends.yml'
+
+- job:
+    name: s2i-test-base-ceph-2comp
+    abstract: true
+    parent: podified-multinode-hci-deployment-crc-2comp-centos-10
+    description: |
+      Validate speculatively-built s2i images against a live
+      two-compute HCI OpenStack deployment with Ceph.
+    required-projects: *s2i_test_base_requiredprojects
+    vars: *s2i_test_base_ceph_vars
 
 - job:
     name: s2i-openstack-deploy-validation
