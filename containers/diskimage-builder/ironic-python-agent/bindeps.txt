@@ -1,0 +1,220 @@
+# IPA ramdisk package dependencies for container-based image builds.
+#
+# This file lists all RPM packages required to build an
+# ironic-python-agent ramdisk image. Packages are derived from:
+#   - IPA source code analysis (subprocess/execute calls to system binaries)
+#   - diskimage-builder element package-installs.yaml and pkg-map files
+#   - ironic-python-agent-builder element requirements
+#
+# Packages are listed with their RHEL/CentOS package names.
+# Comments indicate the source of each requirement.
+
+# === Disk partitioning and partition table tools ===
+# IPA source: disk_utils.py, disk_partitioner.py, partition_utils.py, hardware.py
+# DIB element: ironic-python-agent-ramdisk-base
+dosfstools
+e2fsprogs
+gdisk
+parted
+util-linux
+xfsprogs
+
+# === RAID management ===
+# IPA source: hardware.py, raid_utils.py
+# DIB element: ironic-python-agent-ramdisk-base
+mdadm
+
+# === Storage hardware tools ===
+# IPA source: hardware.py (ATA security erase, SMART, NVMe)
+# DIB element: ironic-python-agent-ramdisk-base
+hdparm
+nvme-cli
+smartmontools
+
+# === Image conversion ===
+# IPA source: qemu_img.py
+# DIB element: ironic-python-agent-ramdisk-base (qemu-utils -> qemu-img)
+qemu-img
+
+# === EFI and boot management ===
+# IPA source: efi_utils.py, extensions/image.py
+# DIB element: ironic-python-agent-ramdisk-base
+efibootmgr
+efivar
+
+# === Network tools ===
+# IPA source: agent.py, netutils.py, utils.py
+# DIB element: ironic-python-agent-ramdisk-base, dhcp-all-interfaces, simple-init
+dhcpcd
+iproute
+net-tools
+NetworkManager
+
+# === Firewall ===
+# DIB element: ironic-python-agent-ramdisk-base (iptables -> iptables-nft)
+iptables-nft
+
+# === IPMI / BMC tools ===
+# IPA source: hardware.py (ipmitool lan print, modprobe ipmi_*)
+# DIB element: ironic-python-agent-ramdisk-base
+ipmitool
+
+# === Multipath and iSCSI ===
+# IPA source: hardware.py (multipath, multipathd, iscsistart)
+# DIB element: ironic-python-agent-ramdisk-base (open-iscsi -> iscsi-initiator-utils)
+# DIB element: ibft-interfaces
+iscsi-initiator-utils
+device-mapper-multipath
+
+# === System information and hardware discovery ===
+# IPA source: hardware.py, dmi_inspector.py
+# DIB element: ironic-python-agent-ramdisk-base
+dmidecode
+lshw
+
+# === Kernel module management ===
+# IPA source: hardware.py (modprobe ipmi_*, dm_multipath)
+# DIB element: ironic-python-agent-ramdisk-base
+kmod
+
+# === Core utilities ===
+# IPA source: disk_utils.py, extensions/image.py, hardware.py, raid_utils.py
+# (dd, cp, sync, du, shred, chroot, readlink)
+coreutils
+
+# === Process utilities ===
+# IPA source: disk_utils.py (fuser)
+# DIB element: ironic-python-agent-ramdisk-base
+psmisc
+
+# === File type detection ===
+# IPA source: extensions/image.py (file -s)
+file
+
+# === Text processing ===
+# IPA source: hardware.py (awk in ipmitool pipelines)
+gawk
+
+# === Time synchronization ===
+# IPA source: utils.py (chronyd, chronyc)
+# DIB element: ironic-python-agent-ramdisk-base
+chrony
+
+# === System and service management ===
+# IPA source: disk_utils.py, utils.py (udevadm, journalctl, poweroff, reboot)
+# Required by pyudev Python package (libudev)
+systemd
+systemd-libs
+
+# === Container runtime ===
+# IPA source: extensions/standby.py, hardware_managers/container.py (podman)
+# DIB element: ironic-python-agent-ramdisk
+podman
+slirp4netns
+
+# === SELinux ===
+# IPA source: extensions/standby.py (getenforce)
+# DIB element: redhat-common
+libselinux-utils
+policycoreutils-python-utils
+python3-libselinux
+python3-policycoreutils
+selinux-policy
+selinux-policy-targeted
+
+# === SSH ===
+# DIB element: runtime-ssh-host-keys (openssh-client -> openssh)
+openssh
+openssh-server
+
+# === TLS and crypto ===
+# Required by Python cryptography package (libssl, libcrypto)
+# DIB element: redhat-common
+ca-certificates
+openssl
+
+# === Python runtime ===
+# DIB element: ironic-python-agent-ramdisk-base, ensure-venv, svc-map
+python3
+python3-pyyaml
+
+# === ISO generation ===
+# DIB element: ironic-python-agent-ramdisk-base (genisoimage -> xorriso)
+xorriso
+
+# === Archiving ===
+# DIB element: source-repositories extra-data.d (tar for source extraction)
+tar
+
+# === Kernel and boot ===
+# Required by DIB select_boot_kernel_initrd (img-functions) which looks for
+# /boot/vmlinuz-* and /boot/initramfs-*.img in the target filesystem.
+# The base container image has no kernel installed by default.
+# A placeholder initramfs is created in the Containerfile since dracut
+# cannot run during the container build. The IPA ramdisk build creates
+# its own cpio-based initramfs and only copies out the kernel binary.
+kernel
+kernel-core
+kernel-modules
+kernel-modules-core
+kernel-modules-extra
+
+# === Firmware ===
+# DIB element: ironic-python-agent-ramdisk-base (post-install, rh only)
+linux-firmware
+
+# === Diagnostics (from redhat-common element) ===
+lsof
+tcpdump
+traceroute
+which
+
+# === Audit and system services (to align with upstream qcow2 image) ===
+audit
+irqbalance
+lvm2
+
+# === Other (from redhat-common, install-static element) ===
+gettext
+rng-tools
+shadow-utils
+rsync
+
+# === Miscellaneous (from ironic-python-agent-ramdisk-base, ironic-ramdisk-base) ===
+# Used by source-repositories element for fetching
+curl
+# Used for cache cleanup
+dnf
+
+# === Build-only (needed during image build, not at runtime) ===
+# These are required for compiling Python C extensions during the build.
+# They can be removed in a post-install cleanup phase.
+gcc
+git-core
+libffi-devel
+openssl-devel
+python3-devel
+
+# === Optional: Mellanox/Nvidia firmware management ===
+# IPA source: hardware_managers/nvidia/nvidia_fw_update.py
+# Only needed if managing Mellanox NIC firmware
+# mstflint
+# pciutils
+
+# === Optional: Burn-in and stress testing ===
+# IPA source: burnin.py
+# Only needed if using IPA burn-in features
+# fio
+# stress-ng
+
+# === Optional: Network interface naming and extra-hardware ===
+# IPA source: hardware.py (biosdevname)
+# DIB element: extra-hardware
+biosdevname
+ethtool
+fio
+fio-engine-libaio
+infiniband-diags
+lldpad
+pciutils
+sysbench
