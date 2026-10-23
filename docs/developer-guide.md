@@ -687,6 +687,42 @@ must remain **direct** dependents of the provider so the registry stays
 paused until they finish. Operator consumption is documented in
 [`operator-onboarding.md`](operator-onboarding.md).
 
+### Content status page
+
+Besides the `zuul_return` data for dependent jobs, the provider publishes
+a plain-HTTP status document that jobs running **in parallel** with the
+provider (no Zuul dependency) can consume. `pre.yaml` starts a small
+busybox httpd container serving `{{ status_dir }}/content.json` on port
+8080 (`s2i_ci_status_port`), and prints this single-line console marker
+that parallel consumers grep from the provider's live console stream
+(via the Zuul console-stream API) to discover the endpoint:
+
+```
+S2I_CONTENT_PROVIDER_STATUS_URL: http://<builder-ip>:8080/content.json
+```
+
+The document is written atomically (staged then `mv`-ed into place) and
+moves through two states:
+
+- `building` — published as soon as the registry is up; carries the
+  registry endpoint plus namespace/tag/stream metadata.
+- `ready` — published after the push and reference/mapping verification,
+  just before `zuul_return`; adds `selected_images`, `images`, and the
+  `custom_container_images` deployment-key mapping (the same mapping
+  returned as `s2i_content_provider_os_custom_container_images`).
+
+A parallel consumer waits for the provider job to pause — detected
+through the Zuul status API it already polls for discovery — then
+fetches `content.json` and applies `custom_container_images` as its
+OpenStackVersion image overrides. A `result: FAILURE` on the provider
+job means the run failed; the status endpoint disappearing while the
+consumer still waits indicates node loss or an aborted provider job.
+Because such a consumer does not depend on the provider in Zuul, a noop
+anchor job depending on both the provider and the consumer is required
+to keep the paused provider's registry alive until the consumer
+completes. Dependent jobs receive the status URL as
+`s2i_content_provider_status_url` in the returned data.
+
 ## Build architecture
 
 ### Base image (`openstack-base`)
