@@ -1,1 +1,1 @@
-master novnc https://github.com/novnc/noVNC.git master acca57b997f206683d27796829ee1f72da37002a -
+master novnc https://github.com/novnc/noVNC.git master e8b5024d4603587b29ffede4fbd28b1fa2939829 -

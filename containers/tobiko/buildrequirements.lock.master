@@ -35,4 +35,4 @@ zipp==4.1.1
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==76.1.0 ; python_version > "3.9"
-setuptools==84.0.0 ; python_version > "3.9"
+setuptools==84.2.1 ; python_version > "3.9"

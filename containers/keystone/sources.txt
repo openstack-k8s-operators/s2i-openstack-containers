@@ -1,2 +1,2 @@
 master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 bab6cd8e3b9a5ac61b98aa7016c7d98b3000a8ac -
-master keystone https://opendev.org/openstack/keystone.git stable/2026.2 2456a4c7e6b689ece589975ef33202790236364d 30.0.1.dev2
+master keystone https://opendev.org/openstack/keystone.git stable/2026.2 e6dc5ae079e64c1f43347b14bdb0d4e25ae211b7 30.0.1.dev5
