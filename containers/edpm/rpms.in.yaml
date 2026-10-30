@@ -1,0 +1,58 @@
+contentOrigin:
+  repofiles:
+    - ../../rpms.repo
+context:
+  bare: true
+
+arches:
+  - x86_64
+  - aarch64
+
+packages:
+  - NetworkManager
+  - NetworkManager-ovs
+  - bind-utils
+  - buildah
+  - ceph-common
+  - cephadm
+  - chrony
+  - cloud-init
+  - cronie
+  - crypto-policies-scripts
+  - cyrus-sasl-scram
+  - device-mapper-multipath
+  - driverctl
+  - edk2-ovmf
+  - grubby
+  - iproute-tc
+  - iptables-services
+  - iscsi-initiator-utils
+  - jq
+  - ksmtuned
+  - libseccomp
+  - libvirt
+  - libvirt-admin
+  - libvirt-client
+  - libvirt-daemon
+  - lvm2
+  - nftables
+  - numactl
+  - nvme-cli
+  - openssh-server
+  - openvswitch3.5
+  - podman
+  - python3-libselinux
+  - python3-pyyaml
+  - qemu-img
+  - qemu-kvm
+  - rsync
+  - rsyslog-openssl
+  - sos
+  - swtpm
+  - swtpm-tools
+  - sysstat
+  - systemd-container
+  - tmpwatch
+  - tuned
+  - tuned-profiles-cpu-partitioning
+  - yum-utils

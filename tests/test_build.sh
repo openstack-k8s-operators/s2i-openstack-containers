@@ -158,6 +158,8 @@ _run() {
     export NAMESPACE=openstack
     export TAG=test
     export PARALLEL=2
+    export BUILD_FLAGS="${BUILD_FLAGS:-}"
+    export BUILD_FLAGS_FILE="${BUILD_FLAGS_FILE:-}"
     export BUILD_LOGS_DIR="${TEST_DIR}/logs"
     export GIT_REVISION="${GIT_REVISION:-}"
     ./build.sh "${action}" "$@"
@@ -348,6 +350,31 @@ test_build_rejects_local_cache_with_pip_config() {
   assert_no_grep '^ARGS bud' "${TEST_DIR}/build.log"
 }
 
+test_build_passes_additional_build_flags() {
+  BUILD_FLAGS="--build-arg EDPM_BASE_IMAGE=example.test/bootc:stream10" \
+    _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'EDPM_BASE_IMAGE=example.test/bootc:stream10' "${TEST_DIR}/build.log"
+}
+
+test_build_flags_file_preserves_argument_spaces() {
+  printf '%s\n' '--build-arg' 'REPO_SETUP_EXTRA=rhos-release ceph-6.0 -r 9.4' \
+    >"${TEST_DIR}/build-flags"
+  export BUILD_FLAGS_FILE="${TEST_DIR}/build-flags"
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+  unset BUILD_FLAGS_FILE
+
+  assert_grep 'REPO_SETUP_EXTRA=rhos-release ceph-6.0 -r 9.4' "${TEST_DIR}/build.log"
+}
+
+test_repository_all_target_includes_edpm_bootc() {
+  local targets
+  targets="$(./build.sh resolve all 2>/dev/null)"
+
+  assert "EDPM bootc is included in the all-target build" \
+    grep -qxF 'edpm/edpm-bootc' <<<"${targets}"
+}
+
 test_parallel_build_produces_logs() {
   _run build-parallel "alpha/one,beta/two" >"${TEST_DIR}/build.log" 2>&1 || true
 
@@ -400,6 +427,9 @@ TESTS=(
   test_build_uses_supplied_pip_config
   test_build_scopes_supplied_proxy_to_run_steps
   test_build_rejects_local_cache_with_pip_config
+  test_build_passes_additional_build_flags
+  test_build_flags_file_preserves_argument_spaces
+  test_repository_all_target_includes_edpm_bootc
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates
