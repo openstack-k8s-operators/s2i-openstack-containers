@@ -43,7 +43,7 @@ DEFAULT_REPO_URL="https://review.opendev.org/openstack/horizon"
 BAKED_HORIZON="/usr/share/horizontest/horizon"
 [[ -z ${REPO_URL} ]] && REPO_URL="${DEFAULT_REPO_URL}"
 
-function catch_error_if_debug {
+catch_error_if_debug() {
     echo "File run_horizontest.sh has run into an error!"
     sleep infinity
 }
@@ -54,11 +54,11 @@ if [ ${HORIZONTEST_DEBUG_MODE} == true ]; then
 fi
 
 #This function is temporarily added until tempest cleanup is implemented
-function clean_leftover_images {
+clean_leftover_images() {
     openstack image list -c Name -f value --os-cloud default | xargs -I {} openstack image delete {} --os-cloud default
 }
 
-function create_custom_resources {
+create_custom_resources() {
     if ! openstack image show --os-cloud default ${IMAGE_FILE_NAME} ; then
         if [ ! -f "$IMAGE_FILE" ]; then
             curl -o "$IMAGE_FILE" -OL ${IMAGE_URL}
@@ -101,7 +101,7 @@ function create_custom_resources {
     fi
 }
 
-function delete_custom_resources {
+delete_custom_resources() {
     if openstack image show --os-cloud default ${IMAGE_FILE_NAME}; then
         openstack image delete \
                 --os-cloud default ${IMAGE_FILE_NAME}
