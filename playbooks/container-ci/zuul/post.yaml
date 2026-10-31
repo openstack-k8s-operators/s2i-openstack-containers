@@ -80,3 +80,23 @@
       ansible.builtin.file:
         path: "{{ s2i_ci_registry_connection_file }}"
         state: absent
+
+- name: Remove the content status page
+  hosts: builder
+  gather_facts: false
+  vars:
+    s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
+    s2i_ci_status_dir: "{{ s2i_ci_output_dir }}/.s2i-ci-status"
+
+  tasks:
+    - name: Remove the content status file server
+      ansible.builtin.command:
+        argv: [podman, rm, --force, s2i_status]
+      register: s2i_ci_removed_status
+      changed_when: s2i_ci_removed_status.stdout | length > 0
+      failed_when: false
+
+    - name: Remove the content status directory
+      ansible.builtin.file:
+        path: "{{ s2i_ci_status_dir }}"
+        state: absent
