@@ -1,3 +1,3 @@
 # <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>  version
 master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 dfd17433f51c9080e8441719b2f28752a660910b -
-master octavia https://opendev.org/openstack/octavia.git stable/2026.2 2900ed67cac248607cdfeb42780d0ce19bbea0f5 19.0.1.dev19
+master octavia https://opendev.org/openstack/octavia.git stable/2026.2 c0f3c5f393f98678974be38b4074632ee324d620 19.0.1.dev26
