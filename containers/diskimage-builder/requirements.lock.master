@@ -21,7 +21,7 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 markupsafe==3.0.4
 mccabe==0.7.0
-more-itertools==11.1.0
+more-itertools==11.2.1
 msgpack==1.2.3
 netaddr==1.3.0
 networkx==3.6.1
@@ -36,11 +36,11 @@ packaging==26.3
 pbr==7.1.3
 pexpect==4.9.0
 pint==0.25.3
-platformdirs==4.12.4
+platformdirs==4.13.5
 psutil==7.2.2
 ptyprocess==0.7.0
 pycodestyle==2.11.1
-pycparser==3.11
+pycparser==3.12
 pyflakes==3.1.0
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0
@@ -58,7 +58,7 @@ urllib3==2.8.0
 voluptuous==0.16.0
 werkzeug==3.1.9
 wheel==0.48.0
-wrapt==2.5.0
+wrapt==2.5.1
 zeroconf==0.151.5
 
 # The following packages are considered to be unsafe in a requirements file:
