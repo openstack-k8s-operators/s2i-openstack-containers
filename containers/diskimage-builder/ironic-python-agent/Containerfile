@@ -68,6 +68,21 @@ COPY builddeps.txt /tmp/builddeps.txt
 RUN pkgs=$(cat /tmp/builddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi
 
+# gdisk/sgdisk RPMs are not available in RHEL-10. Build sgdisk from source,
+# linking against libuuid/libpopt from packages. The runtime libraries are
+# installed into the ramdisk via bindeps.txt.
+COPY ironic-python-agent/gdiskbuilddeps.txt /tmp/gdiskbuilddeps.txt
+RUN pkgs=$(cat /tmp/gdiskbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
+    if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
+    rm /tmp/gdiskbuilddeps.txt
+
+WORKDIR /src/gdisk
+RUN make clean && \
+    make -j"$(nproc)" sgdisk && \
+    ./sgdisk --version && \
+    ldd ./sgdisk && \
+    install -D -m 0755 sgdisk /build/gdisk/usr/sbin/sgdisk
+
 COPY pythonbuilddeps.txt /tmp/pythonbuilddeps.txt
 RUN pkgs=$(cat /tmp/pythonbuilddeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then pip3 install --no-cache-dir -c /deps-upper-constraints.txt ${pkgs}; fi && \
@@ -101,11 +116,18 @@ RUN pip3 wheel --no-cache-dir --no-deps \
       -r /tmp/pythondeps.txt
 
 RUN for src_dir in /src/*/ /src/overrides/*/; do \
-      if [ -d "${src_dir}" ] && [ -f "${src_dir}/setup.cfg" ]; then \
-        pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
-        commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
-        version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
-        echo "${pkg_name},${commit},${version}"; \
+      if [ -d "${src_dir}" ]; then \
+        if [ -f "${src_dir}/setup.cfg" ]; then \
+            pkg_name=$(grep -m1 '^name' "${src_dir}/setup.cfg" | sed 's/.*=\s*//'); \
+            commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+            version=$(ls /wheels/pkgs/${pkg_name//-/_}-*.whl 2>/dev/null | head -1 | sed 's/.*-\([0-9][^-]*\)-.*/\1/' || echo "unknown"); \
+            echo "${pkg_name},${commit},${version}"; \
+        elif [ -d "${src_dir}/.git" ]; then \
+            pkg_name=$(basename ${src_dir}); \
+            commit=$(git -C "${src_dir}" rev-parse HEAD 2>/dev/null || echo "unknown"); \
+            version=$(git -C "${src_dir}" describe --tags --exact-match 2>/dev/null || echo "unknown"); \
+            echo "${pkg_name},${commit},${version}"; \
+        fi; \
       fi; \
     done > /source-built-packages.txt
 
@@ -134,7 +156,8 @@ RUN --mount=from=os_source,src=/,dst=/os_source \
       --exclude='./var/cache/*' \
       --exclude='./var/tmp/*' \
       --xattrs --xattrs-include='*' --xattrs-exclude='security.selinux' \
-      -C /os_source .
+      -C /os_source . && \
+    tar rf ${DIB_TARBALL_PATH} -C /build/gdisk .
 
 ENV DIB_BIND_MOUNTS=1
 ENV DIB_NO_TMPFS=1

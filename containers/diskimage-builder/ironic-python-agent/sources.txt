@@ -1,2 +1,3 @@
 master ironic-python-agent https://opendev.org/openstack/ironic-python-agent.git master 47049f1a448fd5314427b29ab2e19c67bcf7d40c 13.1.0.dev15
 master ironic-python-agent-builder https://opendev.org/openstack/ironic-python-agent-builder.git master 6c7850054175da96fd8f393bb7874473f54a4cc3 7.5.0.dev18
+master gdisk https://git.code.sf.net/p/gptfdisk/code master 9743a0498ea23b64ff53b94cabf0bd1542468573 1.0.10-master
