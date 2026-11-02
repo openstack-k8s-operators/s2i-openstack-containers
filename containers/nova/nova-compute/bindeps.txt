@@ -14,3 +14,4 @@ ceph-common
 python3-openvswitch3.5
 openssh-clients
 dosfstools
+cryptsetup
