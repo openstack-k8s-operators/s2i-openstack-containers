@@ -11,6 +11,7 @@ arches:
 packages:
   - cargo
   - ceph-common
+  - cryptsetup
   - device-mapper-multipath
   - dosfstools
   - e2fsprogs
