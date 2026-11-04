@@ -12,10 +12,11 @@
     name: s2i-openstack-container-content-provider
     parent: base
     description: |
-      Build and publish OpenStack service container images for dependent
-      jobs. This repository builds all maintained images by default;
-      child jobs can select a subset, use auto-detect for speculative
-      rebuilds, and add related required projects.
+      Build and publish all maintained images for dependent jobs, including
+      OpenStack services and independent OS images such as EDPM bootc. This
+      repository builds all maintained images by default; child jobs can
+      select a subset, use auto-detect for speculative rebuilds, and add
+      related required projects.
     timeout: 7200
     nodeset: s2i-openstack-containers-image-builder-small
     semaphores: s2i-builder

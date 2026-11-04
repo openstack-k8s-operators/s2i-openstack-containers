@@ -109,6 +109,10 @@
 #   PIP_NO_BINARY     If set, passed as --build-arg to buildah so Containerfiles
 #                     can set ENV PIP_NO_BINARY. Use ":all:" to force pip to
 #                     build all packages from source instead of using wheels.
+#   BUILD_FLAGS       Additional whitespace-separated buildah bud options,
+#                     such as --build-arg, --secret, or --volume.
+#   BUILD_FLAGS_FILE  Optional file with one buildah bud argument per line;
+#                     use it for option values containing whitespace.
 #   PBR_VERSION_FROM_GIT  If true, let PBR derive source package versions from
 #                     Git instead of using the versions pinned in sources.txt.
 #   GIT_REVISION      Commit of this repository recorded as
@@ -159,6 +163,22 @@ DEFAULT_STREAM="${DEFAULT_STREAM:-master}"
 SKIP_HASH_UPDATE="${SKIP_HASH_UPDATE:-}"
 REQUIREMENTS_SRC="${REQUIREMENTS_SRC:-}"
 PIP_NO_BINARY="${PIP_NO_BINARY:-}"
+BUILD_FLAGS="${BUILD_FLAGS:-}"
+BUILD_FLAGS_ARRAY=()
+if [[ -n "${BUILD_FLAGS}" ]]; then
+  read -r -a BUILD_FLAGS_ARRAY <<< "${BUILD_FLAGS}"
+fi
+BUILD_FLAGS_FILE="${BUILD_FLAGS_FILE:-}"
+if [[ -n "${BUILD_FLAGS_FILE}" ]]; then
+  if [[ ! -r "${BUILD_FLAGS_FILE}" ]]; then
+    echo "ERROR: BUILD_FLAGS_FILE is not readable: ${BUILD_FLAGS_FILE}" >&2
+    exit 1
+  fi
+  while IFS= read -r build_flag || [[ -n "${build_flag}" ]]; do
+    [[ -z "${build_flag}" || "${build_flag}" == \#* ]] && continue
+    BUILD_FLAGS_ARRAY+=("${build_flag}")
+  done < "${BUILD_FLAGS_FILE}"
+fi
 PBR_VERSION_FROM_GIT="${PBR_VERSION_FROM_GIT:-false}"
 CARGO_NET_OFFLINE="${CARGO_NET_OFFLINE:-false}"
 REGISTRY_AUTH_FILE="${REGISTRY_AUTH_FILE:-}"
@@ -1172,6 +1192,7 @@ build_image() {
     buildah_bud \
       $(image_tag_args "${dir_name}") \
       $(image_label_args) \
+      "${BUILD_FLAGS_ARRAY[@]}" \
       --build-arg "CONSTRAINTS_FILE=${base_constraints}" \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
       ${PIP_NO_BINARY:+--build-arg "PIP_NO_BINARY=${PIP_NO_BINARY}"} \
@@ -1192,6 +1213,7 @@ build_image() {
     buildah_bud \
       $(image_tag_args "${dir_name}") \
       $(image_label_args) \
+      "${BUILD_FLAGS_ARRAY[@]}" \
       --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
       -f "${CONTAINERS_DIR}/${dir_name}/Containerfile" \
       "${CONTAINERS_DIR}/${project}/"
@@ -1254,6 +1276,7 @@ build_image() {
     $(image_tag_args "${dir_name}") \
     $(image_label_args) \
     "${constraint_arg[@]}" \
+    "${BUILD_FLAGS_ARRAY[@]}" \
     --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
     ${PIP_NO_BINARY:+--build-arg "PIP_NO_BINARY=${PIP_NO_BINARY}"} \
     "${cargo_volume_arg[@]}" \
@@ -2816,6 +2839,8 @@ case "${ACTION}" in
     echo "  TAG               Image tag(s), comma-separated (default: latest)"
     echo "  IMAGE_PREFIX      Prefix for image names (default: openstack)"
     echo "  BASE_IMAGE        Base image for the base container"
+    echo "  BUILD_FLAGS       Additional whitespace-separated buildah bud options"
+    echo "  BUILD_FLAGS_FILE  File with one buildah bud argument per line"
     echo "  CONSTRAINTS_FILE  Constraints/lockfile base name (default: requirements.lock)"
     echo "  BUILD_CONSTRAINTS_FILE  Build-requirements lockfile base name (default: buildrequirements.lock)"
     echo "  DEFAULT_STREAM    Default stream for un-streamed symlinks (default: master)"
