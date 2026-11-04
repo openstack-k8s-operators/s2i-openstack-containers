@@ -6,7 +6,6 @@ aliases:
     - stuggi
   s2i-openstack-approvers:
     - amoralej
-    - rebtoor
     - yazug
     - fmount
     - elfiesmelfie
