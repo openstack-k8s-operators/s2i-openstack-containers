@@ -1,0 +1,18 @@
+# Additional Python packages not in ironic-python-agent's requirements.txt
+
+# pip and setuptools are needed inside DIB chroot venvs.
+# pip version must match REQUIRED_PIP_STR in
+# ironic-python-agent-builder 60-ironic-python-agent-ramdisk-install,
+# which is incremented occasionally.
+pip==25.1.1
+setuptools==80.10.2
+pbr
+
+# for simple-init element (glean)
+glean
+
+# for extra-hardware element
+hardware
+
+# pyyaml is masked by also installing via rpm. Add it explicitly
+PyYAML

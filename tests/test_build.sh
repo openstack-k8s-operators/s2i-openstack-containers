@@ -364,6 +364,42 @@ test_parallel_build_shows_live_output() {
   assert_grep '\[beta/two\] LIVE beta/two'   "${TEST_DIR}/build.log"
 }
 
+test_build_passes_capabilities_from_file() {
+  cat > "${TEST_DIR}/containers/alpha/one/capabilities.txt" <<EOF
+CAP_SYS_ADMIN
+CAP_NET_RAW
+EOF
+
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'cap-add CAP_SYS_ADMIN' "${TEST_DIR}/build.log"
+  assert_grep 'cap-add CAP_NET_RAW'   "${TEST_DIR}/build.log"
+}
+
+test_build_ignores_comments_and_blanks_in_capabilities() {
+  cat > "${TEST_DIR}/containers/alpha/one/capabilities.txt" <<EOF
+# This is a comment
+CAP_SYS_ADMIN  # needed for mount
+
+   CAP_NET_RAW
+
+# another comment
+EOF
+
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_grep 'cap-add CAP_SYS_ADMIN' "${TEST_DIR}/build.log"
+  assert_grep 'cap-add CAP_NET_RAW'   "${TEST_DIR}/build.log"
+  assert_no_grep 'cap-add.*comment'        "${TEST_DIR}/build.log"
+  assert_no_grep 'cap-add.*needed'         "${TEST_DIR}/build.log"
+}
+
+test_build_without_capabilities_file_has_no_cap_add() {
+  _run build alpha/one >"${TEST_DIR}/build.log" 2>&1
+
+  assert_no_grep 'cap-add' "${TEST_DIR}/build.log"
+}
+
 test_parallel_failure_propagates() {
   local rc=0
   (
@@ -400,6 +436,9 @@ TESTS=(
   test_build_uses_supplied_pip_config
   test_build_scopes_supplied_proxy_to_run_steps
   test_build_rejects_local_cache_with_pip_config
+  test_build_passes_capabilities_from_file
+  test_build_ignores_comments_and_blanks_in_capabilities
+  test_build_without_capabilities_file_has_no_cap_add
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates
