@@ -526,6 +526,28 @@ validation, builds, publication, result generation, and cleanup target that
 host explicitly. The Zuul executor controls Ansible but does not perform those
 mutations.
 
+By default, the provider starts and owns its own plain registry. A caller can
+instead pass `s2i_ci_external_registry` to publish into an existing registry;
+in that mode the provider checks that the registry is reachable, configures
+insecure-registry trust when requested, and does not start or remove a registry
+container. The caller remains responsible for the external registry's
+lifecycle. The external registry must be reachable without authentication.
+The `insecure` option defaults to `true`, which uses HTTP and configures
+insecure-registry trust. Set it to `false` to use HTTPS.
+Pass the connection as an Ansible runtime variable after the caller has
+resolved the registry address. For example:
+
+```yaml
+vars:
+  s2i_ci_external_registry:
+    endpoint: "{{ cifmw_rp_registry_ip }}:{{ cifmw_rp_registry_port }}"
+    public_host: "{{ cifmw_rp_registry_ip }}"
+    public_port: "{{ cifmw_rp_registry_port }}"
+    insecure: true
+```
+
+Omit `s2i_ci_external_registry` to preserve the standalone provider behavior.
+
 The provider copies the RDO base job's `/etc/pip.conf` into a job-local file
 and mounts it into Buildah so Python downloads use the provider mirror. It also
 can run an ephemeral Squid container directly with Podman. Squid caches direct
