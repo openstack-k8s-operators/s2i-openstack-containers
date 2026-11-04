@@ -56,6 +56,7 @@
 
   tasks:
     - name: Remove the plain registry container
+      when: s2i_ci_external_registry is not defined
       ansible.builtin.command:
         argv: [podman, rm, --force, s2i_registry]
       register: s2i_ci_removed_registry
