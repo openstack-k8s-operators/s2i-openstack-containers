@@ -1,0 +1,100 @@
+---
+- name: Validate speculative bootc image handoff and CI selection
+  hosts: builder
+  gather_facts: false
+  vars:
+    s2i_test_repo_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    s2i_ci_content:
+      registry: registry.test:5000
+      tag: test-s2i
+      selected_images:
+        - base
+        - edpm/edpm-bootc
+      images:
+        - registry.test:5000/openstack/openstack-base:test-s2i
+        - registry.test:5000/openstack/openstack-edpm-bootc:test-s2i
+    s2i_test_pipeline: >-
+      {{ (lookup('file', s2i_test_repo_root ~ '/zuul.d/projects.yaml') | from_yaml)[0].project['github-check'].jobs }}
+    s2i_test_jobs: >-
+      {{ lookup('file', s2i_test_repo_root ~ '/zuul.d/jobs.yaml') | from_yaml |
+         map(attribute='job') | list }}
+    s2i_test_selection_tasks: >-
+      {{ (lookup('file', s2i_test_repo_root ~ '/playbooks/bootc/prepare.yaml') | from_yaml)[0].tasks }}
+    s2i_test_bootc_job: >-
+      {{ (s2i_test_pipeline | select('mapping') |
+          selectattr('s2i-crc-podified-edpm-baremetal-bootc-cs10', 'defined') | first)
+          ['s2i-crc-podified-edpm-baremetal-bootc-cs10'] }}
+    s2i_test_positive_pattern: "{{ '(' ~ (s2i_test_bootc_job.files | join(')|(')) ~ ')' }}"
+    s2i_test_negative_pattern: "{{ '(' ~ (s2i_test_bootc_job['irrelevant-files'] | join(')|(')) ~ ')' }}"
+
+  tasks:
+    - name: Require reuse of the existing provider without another paused job
+      ansible.builtin.assert:
+        that:
+          - s2i_test_jobs | selectattr('name', 'equalto', 's2i-content-provider-bootc-cs10') | list | length == 0
+          - >-
+            (s2i_test_jobs | selectattr('name', 'equalto',
+              's2i-crc-podified-edpm-baremetal-bootc-cs10') | first).dependencies
+            == ['s2i-openstack-container-content-provider']
+          - >-
+            (s2i_test_jobs | selectattr('name', 'equalto',
+              's2i-crc-podified-edpm-baremetal-bootc-cs10') | first).parent
+            == 'cifmw-crc-podified-edpm-baremetal-bootc-prebuilt'
+          - >-
+            (s2i_test_jobs | selectattr('name', 'equalto',
+              's2i-openstack-container-content-provider') | first).vars.s2i_ci_images == 'all'
+          - s2i_test_selection_tasks[-1]['ansible.builtin.set_fact'].cacheable
+          - >-
+            (s2i_test_jobs | selectattr('name', 'equalto',
+              's2i-crc-podified-edpm-baremetal-bootc-cs10') | first)
+              .vars.cifmw_install_yamls_vars.DATAPLANE_NETWORK_CONFIG_TOOL == 'nmstate'
+
+    - name: Resolve a published bootc image from mixed service content
+      ansible.builtin.include_tasks: "{{ s2i_test_repo_root }}/playbooks/bootc/resolve-image.yaml"
+
+    - name: Assert the exact bootc reference was selected
+      ansible.builtin.assert:
+        that:
+          - s2i_bootc_source_image == 'registry.test:5000/openstack/openstack-edpm-bootc:test-s2i'
+
+    - name: Reject provider content without bootc rather than use a default image
+      block:
+        - name: Resolve missing bootc image
+          ansible.builtin.include_tasks: "{{ s2i_test_repo_root }}/playbooks/bootc/resolve-image.yaml"
+          vars:
+            s2i_ci_content:
+              registry: registry.test:5000
+              tag: test-s2i
+              selected_images: [base]
+              images: [registry.test:5000/openstack/openstack-base:test-s2i]
+
+        - name: Fail if missing bootc content was accepted
+          ansible.builtin.fail:
+            msg: Missing bootc content was accepted
+      rescue:
+        - name: Require the metadata validation failure
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_result.msg == 'The existing s2i provider must publish the speculative bootc image.'
+
+    - name: Check bootc job file selection
+      ansible.builtin.assert:
+        that:
+          - >-
+            (((item.paths | select('match', s2i_test_positive_pattern) | list | length > 0) and
+              (item.paths | reject('match', s2i_test_negative_pattern) | list | length > 0)) | bool)
+            == item.run
+      loop:
+        - {paths: [containers/edpm/edpm-bootc/Containerfile], run: true}
+        - {paths: [containers/edpm/bindeps.txt], run: true}
+        - {paths: [containers/base/Containerfile], run: true}
+        - {paths: [containers/base/rpms.repo], run: true}
+        - {paths: [containers/base/requirements.lock.master], run: true}
+        - {paths: [build.sh], run: true}
+        - {paths: [tools/source_version.py], run: true}
+        - {paths: [playbooks/bootc/prepare.yaml], run: true}
+        - {paths: [containers/nova/nova-api/Containerfile], run: false}
+        - {paths: [containers/edpm/README.md], run: false}
+        - {paths: [docs/developer-guide.md], run: false}
+        - {paths: [containers/base/README.md], run: false}
+        - {paths: [containers/edpm/bindeps.txt, docs/developer-guide.md], run: true}
