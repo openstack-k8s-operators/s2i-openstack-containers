@@ -2264,8 +2264,48 @@ regenerate_locks_for_targets() {
   done
 }
 
+# Check whether a Containerfile's final (runtime) stage builds FROM the
+# openstack-base image. build.sh passes the openstack-base reference to every
+# service image as the ${BASE_IMAGE} build argument, so layered images are the
+# ones whose last FROM line uses it. Only the final stage matters: images like
+# edpm-bootc run an openstack-base stage only for repository setup but ship a
+# different base image, and standalone images (goose) build from UBI directly.
+# Args: <containerfile>
+containerfile_uses_openstack_base() {
+  local containerfile="$1"
+  local from_line
+  local from_re='^[[:space:]]*FROM[[:space:]]+\$\{BASE_IMAGE\}([[:space:]]+AS[[:space:]]+[^[:space:]]+)?[[:space:]]*$'
+  from_line=$(grep -E '^[[:space:]]*FROM[[:space:]]' "${containerfile}" 2>/dev/null | tail -n 1)
+  [[ "${from_line}" =~ ${from_re} ]]
+}
+
+# Print the RPM package list of the openstack-base image (bindeps.txt +
+# builddeps.txt from containers/base/), one normalized entry per line.
+# Layered images inherit this package set through their FROM ${BASE_IMAGE}
+# stage, so generate_rpms_in_yaml merges it into the rpms.in.yaml of every
+# project with layered images. Pinning the inherited packages in layered RPM
+# lockfiles keeps them consistent with the base image when lockfiles are
+# refreshed independently (e.g. downstream RPM lockfile updates), avoiding
+# build failures from RPM version mismatches between the base image and the
+# refreshed lockfile.
+collect_openstack_base_rpms() {
+  local base_dir="${CONTAINERS_DIR}/base"
+  local depfile line
+  for depfile in bindeps.txt builddeps.txt; do
+    [[ -f "${base_dir}/${depfile}" ]] || continue
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="${line// /}"
+      [[ -z "${line}" ]] && continue
+      printf '%s\n' "${line}"
+    done < "${base_dir}/${depfile}"
+  done
+}
+
 # Generate rpms.in.yaml for a project by collecting all packages from
-# bindeps.txt and builddeps.txt across every image in the project.
+# bindeps.txt and builddeps.txt across every image in the project. Projects
+# with images that build on top of openstack-base also include the base
+# image's package list (see collect_openstack_base_rpms).
 generate_rpms_in_yaml() {
   local project="$1"
   local project_dir="${CONTAINERS_DIR}/${project}"
@@ -2289,6 +2329,17 @@ generate_rpms_in_yaml() {
     local image=$(basename "${image_dir}")
     [[ "${image}" == "common" || "${image}" == "src" ]] && continue
     [[ ! -f "${image_dir}/Containerfile" ]] && continue
+
+    # Layered images build their runtime stage on top of openstack-base, so
+    # the base image's RPM set is part of every such image. Merge it in so
+    # the RPM lockfiles generated from this list pin the same package
+    # versions as the base image.
+    if [[ "${project}" != "base" ]] && \
+       containerfile_uses_openstack_base "${image_dir}/Containerfile"; then
+      while IFS= read -r pkg; do
+        pkgs_seen["${pkg}"]=1
+      done < <(collect_openstack_base_rpms)
+    fi
 
     for depfile in bindeps.txt builddeps.txt; do
       [[ -f "${image_dir}/${depfile}" ]] || continue
