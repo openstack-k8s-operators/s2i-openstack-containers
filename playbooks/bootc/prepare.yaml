@@ -1,0 +1,13 @@
+---
+- name: Select the provider's speculative bootc image for deployment
+  hosts: controller
+  gather_facts: false
+  tasks:
+    - name: Resolve the speculative bootc image
+      ansible.builtin.include_tasks: resolve-image.yaml
+
+    - name: Pass the exact image reference to ci-framework's consumer job
+      ansible.builtin.set_fact:
+        cifmw_edpm_build_images_bootc_source_image: "{{ s2i_bootc_source_image }}"
+        cifmw_edpm_build_images_tag: "{{ s2i_ci_content.tag }}"
+        cacheable: true

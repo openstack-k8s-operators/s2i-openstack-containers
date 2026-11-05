@@ -375,6 +375,27 @@ test_repository_all_target_includes_edpm_bootc() {
     grep -qxF 'edpm/edpm-bootc' <<<"${targets}"
 }
 
+test_parallel_bootc_builds_base_first() {
+  mkdir -p "${TEST_DIR}/containers/edpm/edpm-bootc"
+  cp "${SCRIPT_DIR}/containers/edpm/edpm-bootc/Containerfile" \
+    "${TEST_DIR}/containers/edpm/edpm-bootc/Containerfile"
+
+  BUILD_FLAGS="--build-arg EDPM_BASE_IMAGE=quay.io/centos-bootc/centos-bootc:stream10" \
+    _run build-parallel base,edpm/edpm-bootc >"${TEST_DIR}/build.log" 2>&1
+
+  local base_done bootc_start
+  base_done="$(grep -n 'DONE base' "${TEST_DIR}/build.log" | cut -d: -f1)"
+  bootc_start="$(grep -n 'LIVE edpm/edpm-bootc' "${TEST_DIR}/build.log" | cut -d: -f1)"
+  assert "base completes before bootc starts" test "${base_done}" -lt "${bootc_start}"
+  assert_grep 'tag registry.test:5000/openstack/openstack-edpm-bootc:test' \
+    "${TEST_DIR}/logs/edpm_edpm-bootc.log"
+  assert_grep 'BASE_IMAGE=registry.test:5000/openstack/openstack-base:test' \
+    "${TEST_DIR}/logs/edpm_edpm-bootc.log"
+  assert_grep 'EDPM_BASE_IMAGE=quay.io/centos-bootc/centos-bootc:stream10' \
+    "${TEST_DIR}/logs/edpm_edpm-bootc.log"
+  assert_no_grep 'CONSTRAINTS_FILE=' "${TEST_DIR}/logs/edpm_edpm-bootc.log"
+}
+
 test_parallel_build_produces_logs() {
   _run build-parallel "alpha/one,beta/two" >"${TEST_DIR}/build.log" 2>&1 || true
 
@@ -430,6 +451,7 @@ TESTS=(
   test_build_passes_additional_build_flags
   test_build_flags_file_preserves_argument_spaces
   test_repository_all_target_includes_edpm_bootc
+  test_parallel_bootc_builds_base_first
   test_parallel_build_produces_logs
   test_parallel_build_shows_live_output
   test_parallel_failure_propagates

@@ -70,8 +70,9 @@ RUN rpm -e openssl-fips-provider-so --nodeps || true
 # Align openssl-libs with CentOS Stream so openssl-fips-provider (see
 # bindeps.txt) always installs and images ship fips.so on FIPS nodes
 # (OSPRH-39017).
+# Align libxml2 too so service builds can install matching libxml2-devel.
 # SKIP IN DOWNSTREAM
-RUN microdnf -y distro-sync openssl-libs && microdnf clean all
+RUN microdnf -y distro-sync openssl-libs libxml2 && microdnf clean all
 
 RUN pkgs=$(cat /tmp/bindeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all && rm -rf /var/cache/dnf; fi && \

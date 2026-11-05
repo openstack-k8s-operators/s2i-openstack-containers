@@ -1,4 +1,7 @@
 ---
+- name: Check bootc image handoff
+  ansible.builtin.import_playbook: bootc.yml
+
 - name: Validate the fake normalized registry
   ansible.builtin.import_playbook: >-
     ../../playbooks/container-ci/shared/validate-registry.yaml
