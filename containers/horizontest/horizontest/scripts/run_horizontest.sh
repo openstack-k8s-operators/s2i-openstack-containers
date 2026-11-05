@@ -203,6 +203,9 @@ crudini --set horizon.conf selenium implicit_wait ${SELENIUM_IMPLICIT_WAIT}
 crudini --set horizon.conf network subnet_name ${SUBNET_NAME}
 popd
 
+export XDG_CONFIG_HOME="${HORIZONTEST_DIR}/.xdg-config"
+mkdir -p "${XDG_CONFIG_HOME}"
+
 # run horizon selenium tests
 INTEGRATION_TESTS=1 SELENIUM_HEADLESS=True pytest openstack_dashboard/test/selenium/integration/ -k "${EXTRA_FLAG}" \
         --junitxml="test_reports/ui_integration_test_results.xml" \
