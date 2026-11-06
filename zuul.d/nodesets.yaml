@@ -3,7 +3,7 @@
     name: s2i-openstack-containers-image-builder
     nodes:
       - name: builder
-        label: cloud-centos-10-stream
+        label: cloud-centos-10-stream-tripleo-4vcpu-8GB-80Gb
 
 - nodeset:
     name: s2i-openstack-containers-image-builder-small
