@@ -1,4 +1,5 @@
 # OpenStack Nova Compute
+# CI trigger for nova-operator#1260. Do not merge.
 #
 # The dataplane hypervisor agent. Heaviest and most host-coupled image in
 # this project: libvirt/qemu, os-vif (openvswitch), os-brick (iSCSI/NFS/
