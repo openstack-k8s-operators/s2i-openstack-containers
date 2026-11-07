@@ -1,0 +1,12 @@
+---
+- name: Force a job failure so an autohold request keeps the nodeset
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Fail on purpose after the deployment and tempest have run
+      ansible.builtin.fail:
+        msg: >-
+          Intentional DNM failure so the matching Zuul autohold request
+          holds this nodeset for debugging. Drop this playbook and the
+          post-run entry in zuul.d/jobs.yaml before merging.
