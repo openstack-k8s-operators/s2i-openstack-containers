@@ -108,7 +108,7 @@ RERUN_OVERRIDE_STATUS="${TEMPEST_RERUN_OVERRIDE_STATUS:-false}"
 TEMPEST_EXPECTED_FAILURES_LIST="${TEMPEST_EXPECTED_FAILURES_LIST:-/dev/null}"
 
 
-function catch_error_if_debug {
+catch_error_if_debug() {
     echo "File run_tempest.sh has run into an error!"
     sleep infinity
 }
@@ -229,11 +229,11 @@ if [ -n "${CONCURRENCY}" ] && [ -z "${TEMPEST_CONCURRENCY}" ]; then
     TEMPEST_ARGS+="--concurrency ${CONCURRENCY} "
 fi
 
-function get_image_status {
+get_image_status() {
     openstack image show "${IMAGE_ID}" -f value -c status
 }
 
-function upload_extra_images {
+upload_extra_images() {
     for image_index in "${!TEMPEST_EXTRA_IMAGES_NAME[@]}"; do
         if ! openstack image show "${TEMPEST_EXTRA_IMAGES_NAME[image_index]}"; then
             image_create_params=()
@@ -302,14 +302,14 @@ function upload_extra_images {
 # This function ensures all arguments are handled properly:
 # - Embedded quotes are preserved, e.g. "Some string"
 # - Special bash characters don't need to be escaped, e.g. cubswin:)
-function discover_tempest_config {
+discover_tempest_config() {
     cat <<EOF | xargs discover-tempest-config
 $*
 EOF
 }
 
 
-function prepare_tempest_cleanup {
+prepare_tempest_cleanup() {
     # We're running cleanup only under certain circumstances
     if [[ "${TEMPEST_CLEANUP}" == true ]]; then
         # discover-tempest-config needs 2 flavors it can't run without. When ran without "--create"
@@ -329,7 +329,7 @@ function prepare_tempest_cleanup {
 }
 
 
-function run_tempest_cleanup {
+run_tempest_cleanup() {
     # Run tempest cleanup to delete any leftover resources when not in debug mode
     if [[ "${TEMPEST_CLEANUP}" == true ]]; then
         tempest cleanup
@@ -337,7 +337,7 @@ function run_tempest_cleanup {
 }
 
 
-function run_tempest {
+run_tempest() {
     pushd "${HOMEDIR}"
     tempest init openshift
     pushd "${TEMPEST_DIR}"
@@ -368,7 +368,7 @@ function run_tempest {
 }
 
 
-function run_git_tempest {
+run_git_tempest() {
     mkdir -p "${TEMPEST_EXTERNAL_PLUGIN_DIR}"
     pushd "${TEMPEST_EXTERNAL_PLUGIN_DIR}"
 
@@ -416,7 +416,7 @@ function run_git_tempest {
 }
 
 
-function run_rpm_tempest {
+run_rpm_tempest() {
     # Install additional plugins from .rpms plus their dependencies
     [ "${#TEMPEST_EXTRA_RPMS[@]}" -ne 0 ] && sudo dnf install -y "${TEMPEST_EXTRA_RPMS[@]}"
 
@@ -427,7 +427,7 @@ function run_rpm_tempest {
 }
 
 
-function print_config_files {
+print_config_files() {
     echo "Excluded tests"
     if [ ! -z "${TEMPEST_EXCLUDE_LIST}" ]; then
         cat "${TEMPEST_EXCLUDE_LIST}"
@@ -440,7 +440,7 @@ function print_config_files {
 }
 
 
-function save_config_files {
+save_config_files() {
     # Copies the configuration files from last run to the logs directory.
     mkdir -p "${TEMPEST_LOGS_DIR}/etc"
 
@@ -454,7 +454,7 @@ function save_config_files {
 }
 
 
-function move_tempest_log {
+move_tempest_log() {
     # Moves the tempest.log file from last run to a new name in logs directory.
     # Optional first argument allows specifying the new file name.
     _FILENAME="${1:-tempest_results.log}"
@@ -463,7 +463,7 @@ function move_tempest_log {
 }
 
 
-function generate_test_results {
+generate_test_results() {
     # Produces the report files in subunit, xml and html formats,
     # based on the last recorded run; saves results in the logs directory.
     # Optional first argument allows specifying the custom report file name.
@@ -487,7 +487,7 @@ function generate_test_results {
 }
 
 
-function rerun_failed_tests {
+rerun_failed_tests() {
     # Perform re-run of tests that failed in previous execution, if requested.
     # Saves the results in the logs directory and (if set to do so) overrides
     # the return value from the script if the newer execution is successful.
@@ -526,7 +526,7 @@ function rerun_failed_tests {
 }
 
 
-function check_expected_failures {
+check_expected_failures() {
     # Compares the tests that failed in the last run with the expected list.
     # In case all failed tests were the expected ones, we still return success.
     if [ -s "${FAILED_TESTS_FILE}" ] && [ -s "${TEMPEST_EXPECTED_FAILURES_LIST}" ]; then
@@ -540,7 +540,7 @@ function check_expected_failures {
 }
 
 
-function whitebox_neutron_tempest_plugin_workaround {
+whitebox_neutron_tempest_plugin_workaround() {
     # This workaround is required for the whitebox-neutron-tempest plugin.
     # We need to be able to specify 600 permissions for the id_ecdsa.
     if [ -f "${HOMEDIR}/id_ecdsa" ]; then
