@@ -38,7 +38,7 @@ jsonpointer==3.1.1
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 keystoneauth1==5.17.0
-keystonemiddleware==13.0.1
+keystonemiddleware==13.0.2
 kombu==5.6.2
 lxml==6.1.1
 mako==1.4.1
