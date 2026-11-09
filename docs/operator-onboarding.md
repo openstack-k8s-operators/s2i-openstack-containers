@@ -222,7 +222,6 @@ inherit it under the operator's own name.
       Build s2i <service> images for <service>-s2i-test-<foo>.
     required-projects:
       - name: openstack-k8s-operators/s2i-openstack-containers
-        override-checkout: main
     vars:
       s2i_ci_images:
         - <service>/<image-a>
@@ -332,7 +331,7 @@ Two wiring options:
 1. **Existing `opendev-<service>-edpm-pipeline` in the operator repo,
    already applied by the config repo** (watcher): add the s2i provider
    and consumer to that template in place. Use `s2i_ci_images: auto`,
-   `files:` on the service source tree, and `override-checkout: main`.
+   `files:` on the service source tree.
 2. **No such template** (cinder and most others): add a project stanza
    in
    [`openstack-k8s-operators/config`](https://github.com/openstack-k8s-operators/config)
