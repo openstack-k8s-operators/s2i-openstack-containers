@@ -54,7 +54,6 @@
       cases (cinder-volume, manila-share).
     required-projects: &s2i_test_base_requiredprojects
       - name: openstack-k8s-operators/s2i-openstack-containers
-        override-checkout: main
     vars: &s2i_test_base_vars
       # Operator CP owns content_provider_registry_ip (catalog + CRC
       # insecure list). Append the s2i registry so CRC can pull both.
