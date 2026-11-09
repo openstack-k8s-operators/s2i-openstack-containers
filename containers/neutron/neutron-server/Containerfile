@@ -124,6 +124,8 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
+RUN cp -r /usr/etc/pycadf /etc/pycadf
+
 # Create required directories
 RUN mkdir -p /etc/neutron/plugins/ml2 /var/lib/neutron /var/run/neutron && \
     mkdir -p /var/log/neutron && chmod 750 /var/log/neutron && \

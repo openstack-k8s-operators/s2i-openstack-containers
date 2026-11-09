@@ -111,6 +111,8 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
+RUN cp -r /usr/etc/pycadf /etc/pycadf
+
 RUN mkdir -p /etc/glance /var/log/glance /var/lib/glance /var/lib/glance/images /var/cache/glance && \
     chown -R glance:glance /etc/glance /var/log/glance /var/lib/glance /var/cache/glance && \
     chmod 770 /var/log/glance /var/lib/glance /var/cache/glance

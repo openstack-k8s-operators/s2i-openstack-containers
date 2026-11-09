@@ -110,6 +110,8 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt /tmp/pythondeps-extra.txt | grep -v '^#'
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt /tmp/pythondeps-extra.txt
 
+RUN cp -r /usr/etc/pycadf /etc/pycadf
+
 RUN mkdir -p /etc/swift /var/log/swift /var/lib/swift /var/cache/swift && \
     chown -R swift:swift /etc/swift /var/log/swift /var/lib/swift /var/cache/swift && \
     chmod 770 /var/log/swift /var/lib/swift /var/cache/swift
