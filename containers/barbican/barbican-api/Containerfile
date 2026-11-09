@@ -69,7 +69,8 @@ RUN for src_dir in /src/*/ /src/overrides/*/; do \
     done > /source-built-packages.txt
 
 RUN mkdir -p /configfiles/etc/barbican && \
-    cp -a ${SERVICE_SRC}/etc/barbican/barbican-api-paste.ini /configfiles/etc/barbican/
+    cp -a ${SERVICE_SRC}/etc/barbican/barbican-api-paste.ini /configfiles/etc/barbican/ && \
+    cp -a ${SERVICE_SRC}/etc/barbican/api_audit_map.conf /configfiles/etc/barbican/
 
 # --- Runtime stage ---
 FROM ${BASE_IMAGE}
@@ -101,9 +102,10 @@ RUN mkdir -p /etc/barbican /var/log/barbican /var/lib/barbican /var/cache/barbic
     chmod 770 /var/log/barbican /var/lib/barbican /var/cache/barbican
 
 COPY --from=build /configfiles/etc/barbican/barbican-api-paste.ini /etc/barbican/barbican-api-paste.ini
+COPY --from=build /configfiles/etc/barbican/api_audit_map.conf /etc/barbican/api_audit_map.conf
 
-RUN chmod 640 /etc/barbican/barbican-api-paste.ini && \
-    chown barbican:barbican /etc/barbican/barbican-api-paste.ini
+RUN chmod 640 /etc/barbican/barbican-api-paste.ini /etc/barbican/api_audit_map.conf && \
+    chown barbican:barbican /etc/barbican/barbican-api-paste.ini /etc/barbican/api_audit_map.conf
 
 COPY common/barbican-sudoers /etc/sudoers.d/barbican-sudoers
 RUN chmod 750 /etc/sudoers.d && \
