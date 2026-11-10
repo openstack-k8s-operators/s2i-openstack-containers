@@ -3,8 +3,11 @@
 This guide documents the repository's current build, source-maintenance, and
 contributor workflows. For a concise project introduction, see the root
 [`README.md`](../README.md). For a short testing entry point, see
-[`TESTING.md`](TESTING.md). To build an image that includes an unmerged
-OpenDev change, see
+[`TESTING.md`](TESTING.md). For CI, validation, and publication — the
+GitHub Actions and Zuul jobs, the daily `update-sources` automation, the
+post-merge build-and-push job, and the component jobs — see
+[`ci-validation-publication.md`](ci-validation-publication.md). To build an
+image that includes an unmerged OpenDev change, see
 [`testing-opendev-patches.md`](testing-opendev-patches.md). For dropping
 unwanted upstream dependencies, see
 [`excluding-requirements.md`](excluding-requirements.md). To wire a live
@@ -532,171 +535,22 @@ All image tags are verified to exist locally before any push begins.
 ./build.sh list
 ```
 
-## Zuul content provider
+## CI, validation, and publication
 
-The `s2i-openstack-container-content-provider` job runs on the
-CentOS Stream 10 nodeset host named `builder`. All host preparation, registry
-validation, builds, publication, result generation, and cleanup target that
-host explicitly. The Zuul executor controls Ansible but does not perform those
-mutations.
+Changes to this repository are validated by GitHub Actions workflows and by
+Zuul jobs: the content provider builds all images from the PR's pins, a
+consumer smoke check pulls and inspects them, and a full CRC/EDPM deployment
+validation deploys them and runs tempest. Operator repositories contribute
+per-service component jobs through project templates, a daily
+`update-sources` automation proposes pin bumps, and merged images are
+published by a post-merge Zuul job defined in the rdoproject.org config
+repository.
 
-The provider copies the RDO base job's `/etc/pip.conf` into a job-local file
-and mounts it into Buildah so Python downloads use the provider mirror. It also
-can run an ephemeral Squid container directly with Podman. Squid caches direct
-upstream HTTP traffic or can sit in front of the provider's CentOS mirror. The
-cache is published on the disposable builder and Buildah RUN steps reach it through
-`host.containers.internal`. Proxy values are passed as build arguments so
-host-side base-image pulls are not routed through the package cache. The cache
-intentionally listens without authentication on all interfaces of the
-disposable CI builder. Plain-HTTP CentOS Stream requests can be remapped to the
-provider's CentOS mirror. Otherwise, Squid rewrites plain-HTTP CentOS requests
-to the upstream HTTPS origin before fetching them, without intercepting client
-TLS. The job does not consume host RPM repository files or require
-`podman-compose`. Post-run cleanup
-removes the cache container, its volumes, and generated configuration.
-Persistent source caching is explicitly disabled
-because Zuul already stages speculative source trees and the builder is
-disposable.
-
-`s2i_ci_use_provider_pip_mirror` controls whether the parent-provided
-`pip.conf` is mounted, `s2i_ci_enable_rpm_cache` controls the RPM proxy, and
-`s2i_ci_rpm_cache_use_provider_mirror` controls its optional CentOS Stream
-backend remap. Disabling Squid leaves RPM repository access unchanged;
-the provider mirror still applies to Python downloads when its pip option is
-enabled. The content-provider currently disables the RPM backend remap because
-the Vexxhost mirror does not carry the CentOS Stream 10 SIG repositories used
-by these images. Squid therefore caches their original repository URLs.
-Collapsed forwarding combines concurrent requests for the same object, and
-`repomd.xml` remains fresh for the two-hour job despite DNF cache-bypass
-headers. Squid access and error logs are staged under
-`zuul-output/logs/squid/` for troubleshooting.
-
-In this repository the provider defaults to `all`, so every maintained image
-is built from its exact `sources.txt` pins. A child job can set `s2i_ci_images`
-to an explicit list of image targets; the provider resolves the selection
-through `build.sh` and publishes only that set. The caller is responsible
-for including `base` in the list if service images depend on it.
-
-To compose the provider in an operator repository, define
-`<service>-s2i-content-provider` that parents this job, add the
-container repository to `required-projects`, and override `s2i_ci_images`
-with that service's image targets. The matching deploy job is
-`<service>-s2i-test-<foo>` (see
-[`operator-onboarding.md`](operator-onboarding.md)). Zuul places those
-projects in the shared buildset workspace. Speculative source staging
-is described in [Speculative builds](#speculative-builds-zuul-integration).
-
-### This repository's github-check pipeline
-
-This repo's own check pipeline is not the operator graph. Molecule runs
-on its own. The image jobs are:
-
-```
-s2i-openstack-container-content-provider
-        (pauses; buildset registry stays up)
-        |
-        +-- s2i-openstack-container-consumer-smoke
-        |     fresh CentOS node: pull, inspect, resolve deployment keys
-        |
-        v
-s2i-openstack-deploy-validation  (non-voting CRC/EDPM + tempest)
-  depends on the content provider AND consumer-smoke
-```
-
-`s2i-openstack-deploy-validation` lists **both** dependencies on
-purpose:
-
-- The content provider, so `zuul_return` artifacts stay in scope and
-  the paused registry is not torn down in `post.yaml` while CRC still
-  needs it.
-- Consumer-smoke, so a malformed return, an unreachable registry, an
-  unpullable image, or a deployment key that does not resolve skips the
-  CRC/EDPM nodeset. Smoke is a few minutes; deploy-validation is not.
-
-Do not drop the content-provider line and depend only on smoke. Do not
-set smoke as the `parent:` of `s2i-openstack-deploy-validation`; they
-are different job families. Use Zuul `dependencies`.
-
-Operator `github-check` pipelines follow
-[`operator-onboarding.md`](operator-onboarding.md) instead of copying
-this graph.
-
-### Image deployment metadata
-
-The repository-level `containers/image-mappings.yaml` associates exact build
-targets with OpenStackVersion custom-image fields. Unlisted targets have no
-deployment mapping but are still built and returned. The consolidated
-`watcher/watcher-base` image declares:
-
-```yaml
-openstack_version:
-  custom_container_images:
-    watcher/watcher-base:
-      - watcherAPIImage
-      - watcherApplierImage
-      - watcherDecisionEngineImage
-```
-
-All three keys resolve to the same exact `openstack-watcher-base` reference.
-The image contains the API, applier, and decision-engine entry points and the
-union of their runtime dependencies. Watcher is intentionally not split into
-process-specific images.
-
-Unlisted targets are still built. They are absent from the central mapping
-on purpose:
-
-- `base` is not a service image.
-- `cyborg/*` is not wired into the default control plane yet.
-- `tempest` and `ansible-test` are test images, not control-plane services.
-- `cinder/cinder-volume` and `manila/manila-share` must be set as
-  `cinderVolumeImages` / `manilaShareImages` backend maps, which this
-  scalar mapping format cannot express.
-- s2i does not build `nova-compute`, `nova-conductor`, `nova-scheduler`,
-  `nova-novncproxy`, or placement. Those OpenStackVersion fields stay on
-  operator defaults.
-
-A child job may provide `s2i_ci_image_mappings` as a mapping from a selected
-image target to a replacement list of keys. Replacement is per image rather
-than additive. The provider records whether each effective list came from
-tracked or inventory metadata and rejects malformed values, unknown or unbuilt
-image targets, empty key strings, duplicate keys, and a key assigned to more
-than one image.
-
-### Registry and returned data
-
-The provider starts or inherits a Zuul buildset registry, validates push and
-pull with a dedicated UBI tag, builds and pushes the selected image set, and
-pulls every exact result back. Credentials and certificate data remain in
-Zuul secret data. Returned public diagnostics use the buildset registry's
-reachable host or IP and port, never the builder-local registry alias.
-
-`s2i_ci_content.images` contains every exact successful reference, including
-base and other unmapped images. The partial
-`s2i_content_provider_os_custom_container_images` map contains only effective
-keys joined to exact successful references. The legacy global OS registry URL
-remains the neutral `null` sentinel, while its namespace/tag and gating-repo
-fields remain empty or false because this selective provider does not publish a
-complete OpenStack image namespace. `s2i_cifmw_build_images_output`
-remains an empty mapping and is not repurposed for service images.
-
-All returned variables use the `s2i_content_provider_` or `s2i_cifmw_` prefix
-to avoid colliding with the standard `openstack-k8s-operators-content-provider`
-when both run as parents of the same consumer job.
-
-Intended references are written before build mutation. Post-run cleanup
-removes only those exact Podman pullback and Buildah build tags, verifies exact
-absence, and removes a buildset registry only when its ownership marker is
-valid.
-Per-image parallel logs and registry/result manifests are retained under
-`zuul-output/logs/container-build/`.
-
-The provider pauses while dependent jobs run. In this repository,
-`s2i-openstack-container-consumer-smoke` is the cheap contract check
-(pull, inspect, deployment-key resolution on a fresh node) and
-`s2i-openstack-deploy-validation` is the live CRC/EDPM consumer. Both
-must remain **direct** dependents of the provider so the registry stays
-paused until they finish. Operator consumption is documented in
-[`operator-onboarding.md`](operator-onboarding.md).
+The full job inventory (purpose, trigger, and definition location for each
+job), the content-provider internals (mirrors, caching, image selection,
+returned data), the publication model, and the speculative-build machinery
+are documented in
+[`ci-validation-publication.md`](ci-validation-publication.md).
 
 ## Build architecture
 
@@ -749,34 +603,6 @@ Two-stage build:
 | `PIP_NO_BINARY` | *(unset)* | If set, passed as `--build-arg` to the container build so pip builds packages from source (e.g., `:all:`) |
 | `PBR_VERSION_FROM_GIT` | `false` | If true, let PBR calculate source versions from Git instead of using `sources.txt`; intended for development checkouts |
 
-## CI path filtering
-
-Workflows use GitHub's native [`on.<event>.paths`](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore)
-filters so unrelated jobs are skipped entirely. Skipped workflows count as
-passing for required branch protection when the workflow file exists on the
-default branch. Linters always run. Manual `workflow_dispatch` runs everything.
-
-| Changed paths | Linters | Unit tests | update-sources | Build / push |
-|---------------|---------|------------|----------------|--------------|
-| Docs only (`*.md`, `LICENSE*`) | run | skip | skip | skip |
-| `containers/<service>/` | run | skip | run | **all** images |
-| `build.sh` | run | run | run | **all** images |
-| `tox.ini` | run | run | skip | **all** images |
-| `tests/`, `hack/` | run | run | skip | skip |
-
-When build or push runs, **all** images are built together so every container
-for a commit shares the same `master-<sha>` tag and consistent OS packages.
-
-Pull-request image builds use Zuul's `github-check` pipeline. The
-`s2i-openstack-container-content-provider` job runs for changes outside the
-irrelevant docs/Markdown/`LICENSE*`/`.github` paths and defaults to
-`s2i_ci_images: all`.
-`build.sh` resolves `all` from every discovered Containerfile under
-`containers/`, so changes to `containers/edpm/edpm-bootc/Containerfile` or its
-RPM dependency list build the bootc image along with
-the other maintained targets. GitHub Actions' `build-and-push` workflow is
-separate: it builds and publishes all images on pushes to `main`, not on PRs.
-
 ## Adding a new service
 
 1. Create the project directory structure:
@@ -819,103 +645,15 @@ separate: it builds and publishes all images on pushes to `main`, not on PRs.
 
 ## Speculative builds (Zuul integration)
 
-When a patch is submitted against an upstream OpenStack project (e.g.,
-`openstack/tempest`), the CI pipeline can automatically build fresh
-container images incorporating that patch. This is called a **speculative
-build**.
+When a patch is submitted against an upstream OpenStack project, the CI
+pipeline can automatically build fresh container images incorporating that
+patch. This is called a **speculative build**.
 
-### Auto-detection
-
-The content provider job accepts `s2i_ci_images: auto` to automatically
-determine which images need rebuilding based on the triggering project:
-
-```yaml
-# In a Zuul job definition
-vars:
-  s2i_ci_images: auto
-```
-
-Under the hood, auto-detection:
-
-1. Inspects `zuul['items']` to find the projects in the speculative change
-   queue.
-2. Runs `build.sh auto-detect` with each change's Zuul `project.name`
-   (e.g. `openstack/tempest`). Auto-detect also accepts a full git URL
-   or a Zuul canonical name (`opendev.org/openstack/tempest`).
-3. Replaces `s2i_ci_images` with the de-duplicated list of affected
-   image targets.
-
-You can test auto-detection locally:
-
-```bash
-# Which images would be rebuilt for a tempest patch?
-PARALLEL=1 ./build.sh auto-detect openstack/tempest master
-
-# Full URL form also works
-PARALLEL=1 ./build.sh auto-detect https://opendev.org/openstack/neutron.git
-
-# Zuul canonical names match the same images
-PARALLEL=1 ./build.sh auto-detect opendev.org/openstack/tempest master
-```
-
-### Source staging
-
-After auto-detection resolves the image list, the pipeline stages Zuul's
-source checkouts into the container build contexts. This replaces the
-pinned source with the patched version so the built image includes the
-speculative change.
-
-The staging playbook (`shared/stage-zuul-sources.yaml`) delegates all
-`sources.txt` parsing to `build.sh list-sources`, keeping build.sh as the
-single source of truth for the source manifest format.
-
-`list-sources` emits project paths as they appear in `sources.txt`
-(`openstack/tempest`). Zuul's `zuul.projects` is keyed by canonical
-names (`opendev.org/openstack/tempest`). The staging playbook maps both
-forms so speculative checkouts are copied into `src/` instead of
-building from the pinned git hash.
-
-Staging alone is not enough: committed `requirements.lock.<stream>` still
-pins the last `update-sources` run. After any sources are staged, the
-content provider runs `tox -e sync-locks` for those projects. That
-command:
-
-- Refreshes `upper-constraints.txt.<stream>` from the stream branch tip,
-  or from a Zuul `openstack/requirements` checkout when one is in the
-  buildset (`REQUIREMENTS_SRC`, for example a `Depends-On` constraints
-  bump).
-- Leaves staged `src/` trees in place and clones any missing sibling
-  repos at the **committed pin**, not the branch tip.
-- Regenerates `requirements.lock.<stream>` and
-  `buildrequirements.lock.<stream>` from the current `src/*/requirements.txt`
-  trees plus `pythondeps.txt`.
-- Does **not** rewrite hashes in `sources.txt` and does **not** regenerate
-  `rpms.in.yaml`.
-
-Do not use `update-sources` here. It would advance unstaged sibling pins
-to branch tip and rewrite `sources.txt`.
-
-### Querying source dependencies
-
-`build.sh list-sources` prints pipe-delimited records for all source
-dependencies of an image target:
-
-```bash
-PARALLEL=1 ./build.sh list-sources tempest/tempest master
-# Output: name|canonical_project|url|dest_dir
-# tempest|openstack/tempest|https://opendev.org/openstack/tempest.git|/.../containers/tempest/src/tempest
-# barbican-tempest-plugin|openstack/barbican-tempest-plugin|https://...
-```
-
-This is used by the Ansible playbooks but is also useful for debugging
-which upstream repos feed into a given image.
-
-### Adding speculative deploy+test validation for a service
-
-Once the content provider can build images for a service, wire a live
-deploy+test job on the operator repository. Follow
-[`operator-onboarding.md`](operator-onboarding.md).
-
-That playbook covers job naming (`<service>-s2i-content-provider`,
-`<service>-s2i-test-<foo>`), dual-registry trust, `edpm_prepare` injection,
-and the OpenDev `s2i-speculative-build` template.
+Auto-detection (`s2i_ci_images: auto`), Zuul source staging, relocking with
+`sync-locks`, and the OpenDev `s2i-speculative-build` template are documented
+in
+[`ci-validation-publication.md`](ci-validation-publication.md#speculative-builds-of-opendev-changes).
+The local `sync-locks` command itself is described in
+[Relocking staged sources](#relocking-staged-sources-speculative-ci) above.
+To wire a live deploy+test job for a service on an operator repository,
+follow [`operator-onboarding.md`](operator-onboarding.md).
