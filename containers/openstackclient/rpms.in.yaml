@@ -18,6 +18,7 @@ packages:
   - ipmitool
   - iputils
   - libffi-devel
+  - openssh-clients
   - openssl
   - openssl-devel
   - python3

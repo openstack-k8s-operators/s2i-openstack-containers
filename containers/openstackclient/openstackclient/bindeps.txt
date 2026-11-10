@@ -7,6 +7,9 @@ python3-pip
 python3-cryptography-43.0.0-4.el10
 bash-completion
 iputils
+# needed for `ssh` and `ssh-keygen` (e.g. the ci-framework workload scripts
+# run in this container)
+openssh-clients
 ipmitool
 ceph-common
 # needed for use with `oc cp`
