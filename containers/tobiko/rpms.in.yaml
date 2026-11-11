@@ -9,11 +9,14 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
   - cargo
+  - curl
   - findutils
   - gcc
   - gcc-c++
   - git-core
+  - glibc-langpack-en
   - iperf3
   - iproute
   - iputils
@@ -26,6 +29,7 @@ packages:
   - nmap-ncat
   - openssh-clients
   - openssl-devel
+  - openssl-fips-provider
   - podman
   - procps-ng
   - python3
@@ -34,6 +38,9 @@ packages:
   - python3-pip
   - python3-wheel
   - rust
+  - sudo
   - tar
   - tcpdump
+  - tzdata
+  - util-linux-user
   - which

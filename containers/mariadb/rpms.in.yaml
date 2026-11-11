@@ -9,7 +9,11 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
+  - curl
   - galera
+  - gcc
+  - glibc-langpack-en
   - hostname
   - jq
   - mariadb
@@ -17,7 +21,17 @@ packages:
   - mariadb-server-galera
   - mariadb-server-utils
   - openssl
+  - openssl-fips-provider
+  - procps-ng
+  - python3
+  - python3-devel
+  - python3-pip
+  - python3-wheel
   - rsync
   - socat
   - stunnel
+  - sudo
   - tar
+  - tzdata
+  - util-linux-user
+  - which

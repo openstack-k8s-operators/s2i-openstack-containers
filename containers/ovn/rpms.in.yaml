@@ -9,9 +9,23 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
+  - curl
+  - gcc
+  - glibc-langpack-en
+  - openssl-fips-provider
   - openvswitch3.5
   - ovn26.03
   - ovn26.03-central
   - ovn26.03-host
+  - procps-ng
+  - python3
+  - python3-devel
   - python3-openvswitch3.5
+  - python3-pip
+  - python3-wheel
+  - sudo
   - tcpdump
+  - tzdata
+  - util-linux-user
+  - which

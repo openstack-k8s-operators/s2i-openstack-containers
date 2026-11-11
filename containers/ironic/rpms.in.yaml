@@ -11,9 +11,11 @@ arches:
 packages:
   - autoconf
   - automake
+  - ca-certificates
   - cargo
   - cmake
   - cpio
+  - curl
   - dnf
   - dnf-plugins-core
   - dnsmasq
@@ -24,6 +26,7 @@ packages:
   - gcc-c++
   - git
   - git-core
+  - glibc-langpack-en
   - grub2-efi
   - hostname
   - httpd
@@ -73,11 +76,13 @@ packages:
   - openssh-clients
   - openssl
   - openssl-devel
+  - openssl-fips-provider
   - parted
   - pixman
   - pixman-devel
   - pkgconfig
   - procps
+  - procps-ng
   - psmisc
   - pykickstart
   - python3
@@ -88,10 +93,14 @@ packages:
   - python3-numpy
   - python3-pip
   - python3-systemd
+  - python3-wheel
   - qemu-img
   - rust
   - shim
+  - sudo
+  - tzdata
   - util-linux
+  - util-linux-user
   - which
   - xfsprogs
   - xkbcomp

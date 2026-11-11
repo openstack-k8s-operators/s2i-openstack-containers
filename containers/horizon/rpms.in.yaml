@@ -9,14 +9,17 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
   - cargo
   - cmake
+  - curl
   - freetype
   - freetype-devel
   - gcc
   - gcc-c++
   - gettext
   - git-core
+  - glibc-langpack-en
   - httpd
   - libffi-devel
   - libjpeg-turbo
@@ -31,6 +34,8 @@ packages:
   - ninja-build
   - openssl
   - openssl-devel
+  - openssl-fips-provider
+  - procps-ng
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
@@ -38,5 +43,9 @@ packages:
   - python3-pip
   - python3-wheel
   - rust
+  - sudo
   - tar
+  - tzdata
+  - util-linux-user
+  - which
   - zlib-devel
