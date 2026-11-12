@@ -1,3 +1,4 @@
+# DNM SELinux facts gathering
 ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
 
 # --- Build stage: compile wheels from source ---
