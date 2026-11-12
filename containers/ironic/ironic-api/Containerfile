@@ -136,6 +136,8 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
+RUN cp -r /usr/etc/pycadf /etc/pycadf
+
 # Create required directories
 RUN mkdir -p /etc/ironic && \
     mkdir -p /var/log/ironic && chmod 750 /var/log/ironic && \
