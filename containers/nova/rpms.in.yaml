@@ -9,15 +9,18 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
   - cargo
   - ceph-common
   - cryptsetup
+  - curl
   - device-mapper-multipath
   - dosfstools
   - e2fsprogs
   - gcc
   - gcc-c++
   - git-core
+  - glibc-langpack-en
   - httpd
   - iscsi-initiator-utils
   - libffi-devel
@@ -32,6 +35,8 @@ packages:
   - openssh-clients
   - openssl
   - openssl-devel
+  - openssl-fips-provider
+  - procps-ng
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
@@ -40,9 +45,14 @@ packages:
   - python3-numpy
   - python3-openvswitch3.5
   - python3-pip
+  - python3-wheel
   - qemu-img
   - qemu-kvm-block-rbd
   - rust
+  - sudo
   - targetcli
+  - tzdata
+  - util-linux-user
+  - which
   - xfsprogs
   - xorriso

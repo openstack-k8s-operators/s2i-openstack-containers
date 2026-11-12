@@ -9,13 +9,16 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
   - cargo
+  - curl
   - firefox
   - freetype
   - freetype-devel
   - gcc
   - gcc-c++
   - git-core
+  - glibc-langpack-en
   - libffi-devel
   - libjpeg-turbo
   - libjpeg-turbo-devel
@@ -24,11 +27,18 @@ packages:
   - libwebp
   - libwebp-devel
   - openssl-devel
+  - openssl-fips-provider
+  - procps-ng
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
   - python3-pip
+  - python3-wheel
   - rust
+  - sudo
   - tar
+  - tzdata
+  - util-linux-user
+  - which
   - xorg-x11-server-Xvfb
   - zlib-devel

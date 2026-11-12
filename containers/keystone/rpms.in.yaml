@@ -9,10 +9,13 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
   - cargo
+  - curl
   - gcc
   - gcc-c++
   - git-core
+  - glibc-langpack-en
   - httpd
   - krb5-libs
   - libffi-devel
@@ -24,6 +27,8 @@ packages:
   - openldap
   - openldap-devel
   - openssl-devel
+  - openssl-fips-provider
+  - procps-ng
   - python3
   - python3-cryptography-43.0.0-4.el10
   - python3-devel
@@ -31,3 +36,7 @@ packages:
   - python3-pip
   - python3-wheel
   - rust
+  - sudo
+  - tzdata
+  - util-linux-user
+  - which

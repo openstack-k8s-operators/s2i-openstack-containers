@@ -9,6 +9,19 @@ arches:
   - aarch64
 
 packages:
+  - ca-certificates
+  - curl
+  - gcc
+  - glibc-langpack-en
   - openssl
+  - openssl-fips-provider
   - procps-ng
+  - python3
+  - python3-devel
+  - python3-pip
+  - python3-wheel
+  - sudo
+  - tzdata
+  - util-linux-user
   - valkey
+  - which
