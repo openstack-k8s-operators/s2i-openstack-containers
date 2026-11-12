@@ -37,4 +37,7 @@
       s2i_content_provider_registry_ip: "{{ s2i_ci_registry.public_host }}"
       s2i_content_provider_registry_ip_port: >-
         {{ s2i_ci_public_registry_endpoint }}
+      s2i_content_provider_status_url: >-
+        http://{{ s2i_ci_registry.public_host }}:{{ s2i_ci_status_port
+        | default(8080) }}/content.json
       s2i_cifmw_build_images_output: {}
