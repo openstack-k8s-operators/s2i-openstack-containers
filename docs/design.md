@@ -97,33 +97,15 @@ scripts, tmpfiles.d entries, etc.
 
 ## CI, Validation, and Publication
 
-The repository provides tooling to run periodic CI jobs that propose PRs
-updating the pinned commit hashes in `sources.txt` to the latest upstream
-commits. These PRs trigger builds and validation against the
-openstack-k8s-operators environment, so that container images pushed to the
-registry have been verified to be functional.
+The repository runs periodic CI jobs that propose PRs updating the pinned
+commit hashes in `sources.txt` to the latest upstream commits, and publishes
+validated images post-merge to `quay.io/openstack-s2i-containers/`.
 
-Container images are published by the post-merge job to
-`quay.io/openstack-s2i-containers/` with three tags per image:
-
-- **`<stream>-latest`** -- rolling tag, always pointing to the last successfully
-  built and validated containers for that stream.
-- **`<stream>-<sha>`** -- immutable tag tied to the specific commit in this
-  repository that produced the build.
-- **`sha256-<manifest-digest>`** -- content-addressed tag for the pushed
-  manifest. It preserves the manifest and its layers when the rolling tag
-  moves to a later build.
-
-For example, for the `master` stream an image is tagged as `master-latest`,
-`master-<commit-sha>`, and `sha256-<manifest-digest>`. No publication tag is
-assigned a Quay expiration.
-
-Every image also carries OCI labels set at build time:
-
-- `org.opencontainers.image.revision` -- the s2i-openstack-containers git
-  commit that produced the build (`GIT_REVISION`, Zuul `zuul.newrev`, or GHA
-  `github.sha`).
-- `s2i.openstack.org/stream` -- the build stream (for example `master`).
-
-The post-merge push writes a digest catalog (`content-set.yaml`) next to the
-build logs so consumers can pin by digest instead of racing `:master-latest`.
+The full picture — the GitHub Actions and Zuul jobs that validate changes in
+this repository, the daily `update-sources` automation, the post-merge
+build-and-push job defined in the rdoproject.org config repository, and the
+per-service component jobs — is documented in
+[ci-validation-publication.md](ci-validation-publication.md), including the
+published tag scheme (`<stream>-latest`, `<stream>-<sha>`,
+`sha256-<manifest-digest>`), the OCI labels, and the digest catalog
+(`content-set.yaml`).

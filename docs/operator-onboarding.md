@@ -9,12 +9,11 @@ Some of them (for example test-operator and at the moment watcher-operator)
 are special cases.
 
 For how the content provider job works in this repository, see the
-[developer guide](developer-guide.md#zuul-content-provider).
+[CI documentation](ci-validation-publication.md#the-zuul-content-provider-in-depth).
 This document covers the **consumer** side: wiring a live deploy+test
 job in an operator repo. Do not copy this repository's own
 github-check graph (`content-provider` → `consumer-smoke` →
-`deploy-validation`); that wiring is documented under
-[This repository's github-check pipeline](developer-guide.md#this-repositorys-github-check-pipeline).
+`deploy-validation`).
 
 ## Goal
 
