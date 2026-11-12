@@ -24,12 +24,14 @@ packages:
   - gcc-c++
   - git
   - git-core
+  - golang
   - grub2-efi
   - hostname
   - httpd
   - ipmitool
   - iproute
   - ipxe-bootimgs-x86
+  - krb5-devel
   - libX11
   - libX11-devel
   - libXau

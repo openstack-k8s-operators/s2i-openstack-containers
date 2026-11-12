@@ -18,6 +18,7 @@ ARG SERVICE_SRC=/src/ironic
 ARG CONSTRAINTS_FILE=requirements.lock
 COPY ${CONSTRAINTS_FILE} /deps-upper-constraints.txt
 COPY sources.txt /source-versions/project.txt
+COPY ironic-conductor/sources.txt /source-versions/ironic-conductor.txt
 COPY src/ /src/
 COPY ironic-conductor/src/ /src/
 
@@ -103,6 +104,14 @@ RUN mkdir -p /configfiles/etc/ironic && \
 COPY ironic-conductor/extract-boot-assets.sh /tmp/extract-boot-assets.sh
 RUN bash /tmp/extract-boot-assets.sh && rm /tmp/extract-boot-assets.sh
 
+# Build the OpenShift client (oc) from the pinned source tree. kubectl is the
+# same binary under a different argv[0], mirroring the upstream CLI image. The
+# release version is recorded in the image-level sources.txt.
+COPY ironic-conductor/build-openshift-client.sh /tmp/build-openshift-client.sh
+RUN bash /tmp/build-openshift-client.sh /src/oc \
+        /source-versions/ironic-conductor.txt ${SOURCE_VERSION_STREAM} && \
+    rm /tmp/build-openshift-client.sh /source-versions/ironic-conductor.txt
+
 # --- Runtime stage: install from wheels ---
 FROM ${BASE_IMAGE}
 
@@ -129,6 +138,11 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       --find-links=/wheels/pkgs \
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
+
+# Install the source-built OpenShift client. kubectl is a symlink to oc, which
+# selects its command set from argv[0].
+COPY --from=build /usr/local/bin/oc /usr/local/bin/oc
+RUN ln -sf /usr/local/bin/oc /usr/local/bin/kubectl
 
 # Create required directories
 RUN mkdir -p /etc/ironic && \

@@ -1,0 +1,6 @@
+# OpenShift client (oc/kubectl), built from source. kubectl is the same
+# binary invoked under a different argv[0] (see cli.CommandFor in cmd/oc/oc.go);
+# the upstream CLI image installs it as a symlink to oc. The version is the
+# upstream release reported by `oc version`; it is maintained by hand because
+# update-sources rewrites the version of non-Python sources to "-".
+master oc https://github.com/openshift/oc.git release-4.22 062bc5449c4987c92c76da4d315ef4969c22d638 4.22.0-202605222050
