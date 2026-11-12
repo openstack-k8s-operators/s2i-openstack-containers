@@ -5,8 +5,9 @@
 - name: Prepare package caches for container builds
   ansible.builtin.import_playbook: prepare-mirrors.yaml
 
-- name: Deploy a plain Docker registry on the builder
+- name: Prepare the container registry
   hosts: builder
+  gather_facts: true
   vars:
     s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
     s2i_ci_registry_connection_file: >-
@@ -17,106 +18,169 @@
       quay.rdoproject.org/openstack-k8s-operators/registry:2
 
   tasks:
-    - name: Discover an IPv4 for the builder
-      ansible.builtin.set_fact:
-        s2i_ci_registry_ip: >-
-          {{ hostvars[inventory_hostname].ansible_host
-             if hostvars[inventory_hostname].ansible_host is
-                match("[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
-             else ansible_default_ipv4.address }}
-        cacheable: true
-
-    - name: Deploy the plain registry container
+    - name: Prepare the job-local registry
+      when: s2i_ci_external_registry is not defined
       block:
-        - name: "Start registry from {{ s2i_ci_registry_image }}"
-          ansible.builtin.command:
-            argv:
-              - podman
-              - run
-              - --detach
-              - --name=s2i_registry
-              - --restart=always
-              - --network=host
-              - --env
-              - >-
-                REGISTRY_HTTP_ADDR={{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}
-              - --env
-              - REGISTRY_LOG_LEVEL=debug
-              - "{{ s2i_ci_registry_image }}"
+        - name: Discover an IPv4 for the builder
+          ansible.builtin.set_fact:
+            s2i_ci_registry_ip: >-
+              {{ hostvars[inventory_hostname].ansible_host
+                 if hostvars[inventory_hostname].ansible_host is
+                    match("[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
+                 else ansible_default_ipv4.address }}
+            cacheable: true
+
+        - name: Deploy the plain registry container
+          block:
+            - name: "Start registry from {{ s2i_ci_registry_image }}"
+              ansible.builtin.command:
+                argv:
+                  - podman
+                  - run
+                  - --detach
+                  - --name=s2i_registry
+                  - --restart=always
+                  - --network=host
+                  - --env
+                  - >-
+                    REGISTRY_HTTP_ADDR={{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}
+                  - --env
+                  - REGISTRY_LOG_LEVEL=debug
+                  - "{{ s2i_ci_registry_image }}"
+              changed_when: true
+          rescue:
+            - name: "Start registry from {{ s2i_ci_registry_image_fallback }}"
+              ansible.builtin.command:
+                argv:
+                  - podman
+                  - run
+                  - --detach
+                  - --name=s2i_registry
+                  - --restart=always
+                  - --network=host
+                  - --env
+                  - >-
+                    REGISTRY_HTTP_ADDR={{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}
+                  - --env
+                  - REGISTRY_LOG_LEVEL=debug
+                  - "{{ s2i_ci_registry_image_fallback }}"
+              changed_when: true
+
+        - name: Open firewall port for the registry
+          become: true
+          ansible.builtin.command: "{{ item }}"
+          loop:
+            - nft add table ip filter
+            - >-
+              nft add chain ip filter INPUT
+              { type filter hook input priority 0 \; }
+            - >-
+              nft insert rule ip filter INPUT
+              tcp dport {{ s2i_ci_registry_port }} counter accept
           changed_when: true
-      rescue:
-        - name: "Start registry from {{ s2i_ci_registry_image_fallback }}"
-          ansible.builtin.command:
-            argv:
-              - podman
-              - run
-              - --detach
-              - --name=s2i_registry
-              - --restart=always
-              - --network=host
-              - --env
-              - >-
-                REGISTRY_HTTP_ADDR={{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}
-              - --env
-              - REGISTRY_LOG_LEVEL=debug
-              - "{{ s2i_ci_registry_image_fallback }}"
-          changed_when: true
 
-    - name: Open firewall port for the registry
-      become: true
-      ansible.builtin.command: "{{ item }}"
-      loop:
-        - nft add table ip filter
-        - >-
-          nft add chain ip filter INPUT
-          { type filter hook input priority 0 \; }
-        - >-
-          nft insert rule ip filter INPUT
-          tcp dport {{ s2i_ci_registry_port }} counter accept
-      changed_when: true
+        - name: Ensure registries.conf.d exists
+          become: true
+          ansible.builtin.file:
+            path: /etc/containers/registries.conf.d
+            state: directory
+            mode: "0755"
 
-    - name: Ensure registries.conf.d exists
-      become: true
-      ansible.builtin.file:
-        path: /etc/containers/registries.conf.d
-        state: directory
-        mode: "0755"
+        - name: Configure insecure registry trust on the builder
+          become: true
+          ansible.builtin.blockinfile:
+            state: present
+            insertafter: EOF
+            dest: /etc/containers/registries.conf.d/99-s2i-registry.conf
+            create: true
+            mode: "0644"
+            content: |-
+              [[registry]]
+              location = "{{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}"
+              insecure = true
 
-    - name: Configure insecure registry trust on the builder
-      become: true
-      ansible.builtin.blockinfile:
-        state: present
-        insertafter: EOF
-        dest: /etc/containers/registries.conf.d/99-s2i-registry.conf
-        create: true
-        mode: "0644"
-        content: |-
-          [[registry]]
-          location = "{{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}"
-          insecure = true
+        - name: Wait for the registry to respond
+          ansible.builtin.uri:
+            url: "http://{{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}/v2/"
+            status_code: 200
+          register: s2i_ci_registry_health
+          retries: 30
+          delay: 1
+          until: s2i_ci_registry_health.status == 200
 
-    - name: Wait for the registry to respond
-      ansible.builtin.uri:
-        url: "http://{{ s2i_ci_registry_ip }}:{{ s2i_ci_registry_port }}/v2/"
-        status_code: 200
-      register: s2i_ci_registry_health
-      retries: 30
-      delay: 1
-      until: s2i_ci_registry_health.status == 200
+        - name: Write the normalized registry connection file
+          ansible.builtin.copy:
+            dest: "{{ s2i_ci_registry_connection_file }}"
+            mode: "0600"
+            content: |
+              {{ {
+                   'endpoint':
+                     s2i_ci_registry_ip ~ ':' ~ s2i_ci_registry_port,
+                   'public_host': s2i_ci_registry_ip,
+                   'public_port': s2i_ci_registry_port,
+                   'auth_file': '',
+                   'cert_dir': ''
+                 } | to_nice_json }}
 
-    - name: Write the normalized registry connection file
-      ansible.builtin.copy:
-        dest: "{{ s2i_ci_registry_connection_file }}"
-        mode: "0600"
-        content: |
-          {{ {
-               'endpoint':
-                 s2i_ci_registry_ip ~ ':' ~ s2i_ci_registry_port,
-               'public_host': s2i_ci_registry_ip,
-               'public_port': s2i_ci_registry_port,
-               'auth_file': '',
-               'cert_dir': ''
-             } | to_nice_json }}
+    - name: Prepare the external registry
+      when: s2i_ci_external_registry is defined
+      block:
+        - name: Validate the external registry connection
+          ansible.builtin.assert:
+            that:
+              - s2i_ci_external_registry is mapping
+              - s2i_ci_external_registry.endpoint is string
+              - s2i_ci_external_registry.endpoint is match('^[A-Za-z0-9.:-]+$')
+              - s2i_ci_external_registry.public_host is string
+              - s2i_ci_external_registry.public_host | length > 0
+              - s2i_ci_external_registry.public_port | int > 0
+            fail_msg: External registry connection data is invalid
+
+        - name: Ensure registries.conf.d exists for an external registry
+          when: s2i_ci_external_registry.insecure | default(true) | bool
+          become: true
+          ansible.builtin.file:
+            path: /etc/containers/registries.conf.d
+            state: directory
+            mode: "0755"
+
+        - name: Configure insecure registry trust for an external registry
+          when: s2i_ci_external_registry.insecure | default(true) | bool
+          become: true
+          ansible.builtin.blockinfile:
+            state: present
+            insertafter: EOF
+            dest: /etc/containers/registries.conf.d/99-s2i-registry.conf
+            create: true
+            mode: "0644"
+            content: |-
+              [[registry]]
+              location = "{{ s2i_ci_external_registry.endpoint }}"
+              insecure = true
+
+        - name: Check that the external registry is reachable
+          ansible.builtin.uri:
+            url: >-
+              {{ ('http' if s2i_ci_external_registry.insecure | default(true) | bool
+                  else 'https') ~ '://' ~ s2i_ci_external_registry.endpoint ~ '/v2/' }}
+            status_code: 200
+          register: s2i_ci_external_registry_health
+          retries: 30
+          delay: 1
+          until: s2i_ci_external_registry_health.status == 200
+
+        - name: Write normalized external registry connection data
+          ansible.builtin.copy:
+            dest: "{{ s2i_ci_registry_connection_file }}"
+            mode: "0600"
+            content: |
+              {{ {
+                   'endpoint': s2i_ci_external_registry.endpoint,
+                   'public_host': s2i_ci_external_registry.public_host,
+                   'public_port': s2i_ci_external_registry.public_port | int,
+                   'auth_file': '',
+                   'cert_dir': ''
+                 } | to_nice_json }}
 
 - name: Validate the plain registry
   ansible.builtin.import_playbook: ../shared/validate-registry.yaml
