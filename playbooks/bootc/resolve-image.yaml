@@ -1,0 +1,31 @@
+---
+- name: Validate bootc provider metadata
+  ansible.builtin.assert:
+    that:
+      - s2i_ci_content is defined
+      - s2i_ci_content is mapping
+      - s2i_ci_content.registry is string
+      - s2i_ci_content.registry | length > 0
+      - s2i_ci_content.selected_images is sequence
+      - s2i_ci_content.selected_images is not string
+      - s2i_ci_content.images is sequence
+      - s2i_ci_content.images is not string
+      - s2i_ci_content.selected_images | length == s2i_ci_content.images | length
+      - s2i_ci_content.selected_images | unique | length == s2i_ci_content.selected_images | length
+      - "'edpm/edpm-bootc' in s2i_ci_content.selected_images"
+      - s2i_ci_content.tag is string
+      - s2i_ci_content.tag is match('^[A-Za-z0-9_][A-Za-z0-9_.-]*$')
+    fail_msg: The existing s2i provider must publish the speculative bootc image.
+
+- name: Resolve the exact published bootc reference
+  ansible.builtin.set_fact:
+    s2i_bootc_source_image: >-
+      {{ dict(s2i_ci_content.selected_images | zip(s2i_ci_content.images))['edpm/edpm-bootc'] }}
+
+- name: Validate the published bootc reference belongs to the provider
+  ansible.builtin.assert:
+    that:
+      - s2i_bootc_source_image is string
+      - s2i_bootc_source_image.startswith(s2i_ci_content.registry + '/')
+      - s2i_bootc_source_image.endswith(':' + s2i_ci_content.tag)
+      - "' ' not in s2i_bootc_source_image"
