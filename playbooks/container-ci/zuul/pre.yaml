@@ -17,6 +17,11 @@
     s2i_ci_registry_image_fallback: >-
       quay.rdoproject.org/openstack-k8s-operators/registry:2
 
+  pre_tasks:
+    - name: Install SSH authorized keys for debugging access
+      ansible.builtin.include_role:
+        name: add-rdo-authorized-keys
+
   tasks:
     - name: Prepare the job-local registry
       when: s2i_ci_external_registry is not defined
