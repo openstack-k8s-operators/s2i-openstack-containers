@@ -23,6 +23,9 @@
     required-projects:
       - github.com/openstack-k8s-operators/s2i-openstack-containers
       - opendev.org/zuul/zuul-jobs
+      - review.rdoproject.org/config
+    roles:
+      - zuul: review.rdoproject.org/config
     pre-run: playbooks/container-ci/zuul/pre.yaml
     run: playbooks/container-ci/zuul/run.yaml
     post-run: playbooks/container-ci/zuul/post.yaml
