@@ -109,4 +109,11 @@ RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
     sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf 2>/dev/null || true && \
     usermod --append --groups apache watcher
 
+# Cap glibc memory retention (same as cinder-volume): without this,
+# watcher's transient per-tick and applier buffers stay in glibc arenas
+# and free lists, so RSS grows even after the Python objects are freed
+ENV MALLOC_ARENA_MAX=1 \
+    MALLOC_MMAP_THRESHOLD_=131072 \
+    MALLOC_TRIM_THRESHOLD_=262144
+
 USER watcher
