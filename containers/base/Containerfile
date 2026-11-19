@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-ARG UBI_BASE_IMAGE=registry.access.redhat.com/ubi10/ubi-minimal:latest
+ARG UBI_BASE_IMAGE=registry.access.redhat.com/ubi10/ubi-minimal:10.3-1794499233
 
 # --- Build stage: compile wheels from source ---
 FROM ${UBI_BASE_IMAGE} AS build

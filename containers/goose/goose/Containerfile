@@ -1,4 +1,4 @@
-ARG UBI_BASE_IMAGE=registry.access.redhat.com/ubi10/ubi-minimal:latest
+ARG UBI_BASE_IMAGE=registry.access.redhat.com/ubi10/ubi-minimal:10.3-1794499233
 
 # Build Goose from its pinned upstream source. Both stages deliberately use
 # UBI 10 minimal so the Rust binary is linked against a compatible glibc.

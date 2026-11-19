@@ -64,7 +64,7 @@
           - s2i_test_images | intersect(s2i_test_state.buildah) | length == 0
           - s2i_test_validation_image not in s2i_test_state.podman
           - >-
-            'registry.access.redhat.com/ubi10/ubi-minimal:latest' in
+            'registry.access.redhat.com/ubi10/ubi-minimal:10.3-1794499233' in
             s2i_test_state.podman
           - >-
             ['podman', 'push', '--remove-signatures',

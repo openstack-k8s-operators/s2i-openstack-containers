@@ -6,7 +6,7 @@
     s2i_ci_log_dir: "{{ s2i_ci_output_dir }}/logs/container-build"
     s2i_ci_registry_connection_file: >-
       {{ s2i_ci_output_dir }}/.s2i-ci-registry-connection.json
-    s2i_ci_validation_source_image: registry.access.redhat.com/ubi10/ubi-minimal:latest
+    s2i_ci_validation_source_image: registry.access.redhat.com/ubi10/ubi-minimal:10.3-1794499233
     s2i_ci_validation_repository: s2i-validation/ubi10-minimal:latest
 
   tasks:
