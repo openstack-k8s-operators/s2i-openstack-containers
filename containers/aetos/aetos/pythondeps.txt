@@ -3,3 +3,6 @@ oslo.cache[dogpile]
 
 # Paste/PasteDeploy require pkg_resources, removed in setuptools 82
 setuptools==80.10.2
+
+# HTTP tracing exporter extra for oslo.middleware (OpenTelemetry over HTTP)
+oslo.middleware[tracing-http]
