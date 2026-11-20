@@ -113,18 +113,30 @@ tox -e linters
   container images and Containerfiles.
 - [`docs/developer-guide.md`](docs/developer-guide.md) describes repository
   structure, sources, generated files, builds, and maintenance workflows.
+- [`docs/ci-validation-publication.md`](docs/ci-validation-publication.md)
+  documents CI, validation, and publication: every GitHub Actions and Zuul
+  job that validates changes in this repository, the daily `update-sources`
+  automation, the post-merge build-and-push job, and the per-service
+  component jobs.
 - [`docs/operator-onboarding.md`](docs/operator-onboarding.md) is the playbook
   for wiring a speculative deploy+test job on an operator repository.
 - [`docs/TESTING.md`](docs/TESTING.md) provides a concise testing entry point.
 - [`docs/testing-opendev-patches.md`](docs/testing-opendev-patches.md)
   explains how to build an image that includes an unmerged OpenDev
   change.
+- [`docs/excluding-requirements.md`](docs/excluding-requirements.md)
+  explains how to drop unwanted upstream Python dependencies.
+- [`docs/goose-container.md`](docs/goose-container.md) documents the
+  `openstack-goose` AI-assistant image.
 
 ## Publication
 
+Development images are validated by GitHub Actions and Zuul and published
+after merge by the post-merge Zuul job (defined in the rdoproject.org config
+repository) to `quay.io/openstack-s2i-containers/` — see
+[`docs/ci-validation-publication.md`](docs/ci-validation-publication.md).
 Konflux is authoritative for hermetic production provenance and publication.
-GitHub workflows provide development build and validation coverage. Development
-tags published by those workflows do not replace Konflux production artifacts.
+Development tags published by CI do not replace Konflux production artifacts.
 
 ## License
 
