@@ -10,11 +10,11 @@ RUN pkgs=$(grep -vE '^(#|$)' /tmp/builddeps.txt | tr '\n' ' ') && \
     if [ -n "${pkgs}" ]; then microdnf -y install ${pkgs} && microdnf clean all; fi && \
     rm -f /tmp/builddeps.txt
 
-# Goose currently requires Rust 1.94.1, newer than the distribution compiler.
+# Goose currently requires Rust 1.99.0, newer than the distribution compiler.
 # The toolchain is prefetched and checksum-verified by artifacts.txt so this
 # stage performs no network download.
 ARG TARGETARCH=amd64
-COPY goose/rust-1.94.1-linux-${TARGETARCH}.tar.xz /tmp/rust.tar.xz
+COPY goose/rust-1.99.0-linux-${TARGETARCH}.tar.xz /tmp/rust.tar.xz
 RUN mkdir /tmp/rust && \
     tar -xJf /tmp/rust.tar.xz -C /tmp/rust --strip-components=1 && \
     /tmp/rust/install.sh --prefix=/opt/rust --disable-ldconfig && \
