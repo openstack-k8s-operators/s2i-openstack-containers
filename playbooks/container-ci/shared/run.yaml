@@ -4,6 +4,7 @@
   vars:
     s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
     s2i_ci_log_dir: "{{ s2i_ci_output_dir }}/logs/container-build"
+    s2i_ci_status_dir: "{{ s2i_ci_output_dir }}/.s2i-ci-status"
     s2i_ci_registry_connection_file: >-
       {{ s2i_ci_output_dir }}/.s2i-ci-registry-connection.json
     s2i_ci_workspace_root: "{{ zuul_user_dir | default(ansible_user_dir) }}"
@@ -406,6 +407,19 @@
       loop_control:
         loop_var: s2i_ci_image
         label: "{{ s2i_ci_image }}"
+
+    - name: Publish the ready content status document
+      vars:
+        s2i_ci_content_status:
+          status: ready
+          registry: "{{ s2i_ci_public_registry_endpoint }}"
+          namespace: "{{ s2i_ci_namespace }}"
+          tag: "{{ s2i_ci_tag }}"
+          stream: "{{ s2i_ci_stream }}"
+          selected_images: "{{ s2i_ci_selected_images }}"
+          images: "{{ s2i_ci_published_images }}"
+          custom_container_images: "{{ s2i_ci_custom_container_images }}"
+      ansible.builtin.include_tasks: publish-content-status.yaml
 
     - name: Save published image metadata
       ansible.builtin.copy:
