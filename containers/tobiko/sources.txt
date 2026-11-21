@@ -1,2 +1,2 @@
-master upper-constraints https://opendev.org/x/tobiko.git master 6426510a84c563598a0a2f0efc767358fa18e5ff -
-master tobiko https://opendev.org/x/tobiko.git master 6426510a84c563598a0a2f0efc767358fa18e5ff 0.8.33
+master upper-constraints https://opendev.org/x/tobiko.git master 06de06b2dee21f0b09fd2b953adcbc030c237faa -
+master tobiko https://opendev.org/x/tobiko.git master 06de06b2dee21f0b09fd2b953adcbc030c237faa 0.8.34.dev3
