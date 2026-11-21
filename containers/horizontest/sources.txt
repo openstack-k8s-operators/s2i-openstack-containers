@@ -1,3 +1,3 @@
 # <stream> <name> <repo-url> <branch-to-follow> <pinned-hash>  version
-master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 dfd17433f51c9080e8441719b2f28752a660910b -
+master upper-constraints https://opendev.org/openstack/requirements.git stable/2026.2 bbeadfcdd6cd8ac9abf888661d3fc65fa45c7480 -
 master horizontest https://opendev.org/openstack/horizon.git stable/2026.2 504dbe4ada8abda8526ba46fffc03001b50ac583 27.0.1.dev13
