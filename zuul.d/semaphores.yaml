@@ -2,3 +2,7 @@
 - semaphore:
     name: s2i-builder
     max: 10
+
+- semaphore:
+    name: s2i-test
+    max: 10
