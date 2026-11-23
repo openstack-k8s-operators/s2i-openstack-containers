@@ -52,7 +52,7 @@ RUN curl -s -L \
       https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux64.tar.gz \
     | tar -zxvf - -C /usr/local/bin/
 
-RUN curl -OL http://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img \
+RUN curl -L https://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img \
       -o /usr/local/share/cirros-0.6.2-x86_64-disk
 
 COPY horizontest/config/etc/sudoers.d/horizontest_sudoers /etc/sudoers.d/horizontest_sudoers
