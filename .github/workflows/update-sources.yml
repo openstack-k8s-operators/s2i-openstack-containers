@@ -12,8 +12,21 @@ permissions:
 jobs:
   update-sources:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # set fail-fast: false so that a failure for a branch doesn't block the other
+      # see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+      matrix:
+        # branches to update; these are git branches of this very repository,
+        # not streams: each branch's sources.txt keeps a single "master" stream.
+        branch:
+          - main
+          - 19.0-beta
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ matrix.branch }}
+
       - uses: ./.github/actions/setup-tox
 
       - name: Run update-sources
@@ -32,21 +45,22 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_BRANCH: ${{ matrix.branch }}
         run: |
-          BRANCH="auto/update-sources"
+          BRANCH="auto/update-sources-${TARGET_BRANCH}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "${BRANCH}"
           git add containers/
-          git commit -m "Update sources ($(date +%Y-%m-%d))"
+          git commit -m "Update sources (${TARGET_BRANCH}, $(date +%Y-%m-%d))"
           git push -f -u origin "${BRANCH}"
-          EXISTING=$(gh pr list --head "${BRANCH}" --json number --jq '.[0].number // empty')
+          EXISTING=$(gh pr list --head "${BRANCH}" --base "${TARGET_BRANCH}" --json number --jq '.[0].number // empty')
           if [[ -z "${EXISTING}" ]]; then
-            BODY="Automated source update from \`tox -e update-sources\`."
+            BODY="Automated source update from \`tox -e update-sources\` for \`${TARGET_BRANCH}\` branch."
             BODY="${BODY}"$'\n\n'"Changes may include:"
             BODY="${BODY}"$'\n'"- Updated pinned hashes in \`sources.txt\`"
             BODY="${BODY}"$'\n'"- Regenerated \`requirements.lock.<stream>\`"
             BODY="${BODY}"$'\n'"- Regenerated \`upper-constraints.txt.<stream>\`"
             BODY="${BODY}"$'\n'"- Regenerated \`rpms.in.yaml\`"
-            gh pr create --title "Update sources" --body "${BODY}"
+            gh pr create --base "${TARGET_BRANCH}" --title "Update sources (${TARGET_BRANCH})" --body "${BODY}"
           fi
