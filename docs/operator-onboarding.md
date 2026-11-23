@@ -71,6 +71,8 @@ for the deploy+test job:
 - `s2i-test-base-ceph` (a variant of `s2i-test-base` which deploys a minimal
   ceph and configures a few services with it).
 
+or one of their variants (`-2comp`) which deploys two compute nodes.
+
 Do **not** parent `s2i-openstack-deploy-validation` (defined in this
 repo) on operator github-check. That job is special in the way s2i is
 the **sole** content provider. It sets `content_provider_registry_ip`
@@ -230,7 +232,7 @@ inherit it under the operator's own name.
 
 - job:
     name: <service>-s2i-test-<foo>
-    parent: s2i-test-base[-ceph]
+    parent: s2i-test-base[-ceph][-2comp]
     description: |
       Validate speculatively-built s2i <service> images against a live
       OpenStack deployment. s2i-built images from the content provider
