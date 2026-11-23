@@ -4,7 +4,7 @@ set -x
 
 HORIZONTEST_DIR=/var/lib/horizontest
 HORIZON_LOGS_DIR_NAME=${HORIZON_LOGS_DIR_NAME:-"horizon"}
-IMAGE_URL=http://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img
+IMAGE_URL=https://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img
 PROJECT_NAME=horizontest
 USER_NAME=horizontest
 PASSWORD=horizontest
@@ -61,7 +61,7 @@ function clean_leftover_images {
 function create_custom_resources {
     if ! openstack image show --os-cloud default ${IMAGE_FILE_NAME} ; then
         if [ ! -f "$IMAGE_FILE" ]; then
-            curl -o "$IMAGE_FILE" -OL ${IMAGE_URL}
+            curl -o "$IMAGE_FILE" -L ${IMAGE_URL}
         fi
         openstack image create \
                 --os-cloud default \
