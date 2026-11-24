@@ -9,6 +9,7 @@
 # - python3-libvirt's correctness depends on the *host's* actual libvirt
 #   version at deploy time, which lives outside this build entirely.
 
+# DNM test compute test configuration
 ARG BASE_IMAGE=localhost/openstack/openstack-base:latest
 
 # --- Build stage: compile wheels and collect upstream config ---
