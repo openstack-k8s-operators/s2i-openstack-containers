@@ -45,6 +45,7 @@
     name: s2i-test-base
     abstract: true
     parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
+    semaphores: s2i-test
     description: |
       Validate speculatively-built s2i images against a live
       OpenStack deployment. s2i-built images from the
@@ -124,6 +125,7 @@
     name: s2i-test-base-ceph
     abstract: true
     parent: podified-multinode-hci-deployment-crc-1comp-centos-10
+    semaphores: s2i-test
     description: |
       Validate speculatively-built s2i images against a live
       HCI OpenStack deployment with Ceph. s2i-built images from the
@@ -147,6 +149,7 @@
     name: s2i-test-base-ceph-2comp
     abstract: true
     parent: podified-multinode-hci-deployment-crc-2comp-centos-10
+    semaphores: s2i-test
     description: |
       Validate speculatively-built s2i images against a live
       two-compute HCI OpenStack deployment with Ceph.
