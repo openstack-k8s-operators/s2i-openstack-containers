@@ -3,6 +3,11 @@
 oslo.db[mysql]
 # Caching backend (dogpile extra for oslo.cache)
 oslo.cache[dogpile]
+# libssh bindings for ncclient (ssh-python provides the "ssh" module),
+# used by networking-generic-switch NETCONF drivers. NGS declares
+# ncclient[libssh] upstream, but the pinned stable/2026.2 commit predates
+# the extra, so declare it here to ship it regardless of the pin state.
+ssh-python
 # Optional API extension service plugins loaded by neutron-server
 # (neutron-fwaas and tap-as-a-service are built from source alongside
 # neutron, see sources.txt — the pypi/upper-constraints releases are
