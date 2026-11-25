@@ -19,3 +19,5 @@ dnsmasq-utils
 # Required for lxml
 libxml2
 libxslt
+# Runtime libssh for ssh-python (ncclient libssh transport, NGS NETCONF)
+libssh

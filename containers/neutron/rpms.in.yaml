@@ -28,6 +28,8 @@ packages:
   - keepalived
   - libffi-devel
   - libseccomp
+  - libssh
+  - libssh-devel
   - libxml2
   - libxml2-devel
   - libxslt
