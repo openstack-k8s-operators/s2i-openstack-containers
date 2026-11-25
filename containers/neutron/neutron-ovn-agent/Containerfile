@@ -16,8 +16,15 @@ COPY sources.txt /source-versions/project.txt
 COPY src/ /src/
 COPY neutron-ovn-agent/src/ /src/
 
-ARG PIP_NO_BINARY=""
+# ssh-python is compiled from source against the system libssh (see
+# SYSTEM_LIBSSH below) instead of using its manylinux wheel, which bundles
+# a private libssh copy that would not receive distribution CVE fixes.
+# Keep "ssh-python" in the list when overriding PIP_NO_BINARY at build time.
+ARG PIP_NO_BINARY="ssh-python"
 ENV PIP_NO_BINARY=${PIP_NO_BINARY}
+# Link ssh-python against the distribution libssh rather than the libssh
+# source bundled in its sdist (requires libssh-devel from builddeps.txt)
+ENV SYSTEM_LIBSSH=1
 # required to build rpds-py from source
 ENV MATURIN_NO_INSTALL_RUST=true
 
