@@ -44,7 +44,7 @@
 - job:
     name: s2i-test-base
     abstract: true
-    parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
+    parent: podified-multinode-edpm-deployment-crc-centos-10
     semaphores: s2i-test
     description: |
       Validate speculatively-built s2i images against a live
@@ -125,6 +125,7 @@
     name: s2i-test-base-2comp
     abstract: true
     parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
+    semaphores: s2i-test
     description: |
       Validate speculatively-built s2i images against a live
       OpenStack deployment with two compute nodes.
