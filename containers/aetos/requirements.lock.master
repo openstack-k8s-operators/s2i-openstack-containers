@@ -17,7 +17,7 @@ jmespath==1.1.0
 jsonpatch==1.33
 jsonpointer==3.1.1
 keystoneauth1==5.17.0
-keystonemiddleware==13.0.1
+keystonemiddleware==13.0.2
 lxml==6.1.1
 mako==1.4.1
 markdown-it-py==4.2.0
