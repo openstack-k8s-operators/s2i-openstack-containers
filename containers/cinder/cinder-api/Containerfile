@@ -116,6 +116,8 @@ RUN extrapkgs=$(cat /tmp/pythondeps.txt | grep -v '^#' | grep -v '^$' | tr '\n' 
       /wheels/pkgs/*.whl ${extrapkgs} && \
     rm -rf /wheels /tmp/pythondeps.txt
 
+RUN cp -r /usr/etc/pycadf /etc/pycadf
+
 RUN mkdir -p /etc/cinder /var/log/cinder /var/lib/cinder /var/cache/cinder && \
     chown -R cinder:cinder /etc/cinder /var/log/cinder /var/lib/cinder /var/cache/cinder && \
     chmod 770 /var/log/cinder /var/lib/cinder /var/cache/cinder
