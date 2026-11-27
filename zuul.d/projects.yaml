@@ -25,6 +25,17 @@
               - ^docs/.*
               - ^.*\.md$
               - ^LICENSE.*$
+        - s2i-crc-podified-edpm-baremetal-bootc-cs10:
+            files:
+              - ^containers/edpm/
+              - ^containers/base/
+              - ^containers/image-mappings\.yaml$
+              - ^build\.sh$
+              - ^tools/
+              - ^playbooks/bootc/
+              - ^playbooks/container-ci/
+              - ^zuul\.d/(jobs|projects)\.yaml$
+            irrelevant-files: *irrelevant-for-zuul
         - s2i-openstack-container-content-provider:
             irrelevant-files: *irrelevant-for-zuul
             nodeset: s2i-openstack-containers-image-builder
