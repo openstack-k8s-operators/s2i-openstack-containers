@@ -8,3 +8,6 @@ setuptools==80.10.2
 
 # Required to recover the apscheduler jobs created before upgrades
 pytz_deprecation_shim
+
+# HTTP tracing exporter extra for oslo.messaging (OpenTelemetry over HTTP)
+oslo.messaging[tracing-http]
