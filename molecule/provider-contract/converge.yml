@@ -12,6 +12,7 @@
   vars:
     s2i_test_repo_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
     s2i_test_root: "{{ s2i_test_repo_root }}/.tmp/molecule/provider-contract"
+    s2i_test_status_dir: "{{ s2i_test_root }}/zuul-output/.s2i-ci-status"
     s2i_test_images:
       - registry.test:5000/openstack/openstack-base:test
       - registry.test:5000/openstack/openstack-watcher-base:test
@@ -82,6 +83,80 @@
               s2i_ci_target_references['watcher/watcher-base']
           - s2i_ci_custom_container_images.futureCyborgImage ==
               s2i_ci_target_references['cyborg/cyborg']
+
+    - name: Create the content status fixture directory
+      ansible.builtin.file:
+        path: "{{ s2i_test_status_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Publish the building content status document
+      vars:
+        s2i_ci_status_dir: "{{ s2i_test_status_dir }}"
+        s2i_ci_content_status:
+          status: building
+          registry: registry.test:5000
+          namespace: openstack
+          tag: test
+          stream: master
+      ansible.builtin.include_tasks: >-
+        {{ s2i_test_repo_root }}/playbooks/container-ci/shared/publish-content-status.yaml
+
+    - name: Read the building content status document
+      ansible.builtin.slurp:
+        src: "{{ s2i_test_status_dir }}/content.json"
+      register: s2i_test_building_document
+
+    - name: Require the building content status document
+      ansible.builtin.assert:
+        that:
+          - >-
+            {{ s2i_test_building_document.content | b64decode | from_json ==
+               {
+                 'status': 'building',
+                 'registry': 'registry.test:5000',
+                 'namespace': 'openstack',
+                 'tag': 'test',
+                 'stream': 'master'
+               } }}
+        fail_msg: The building content status document is malformed
+
+    - name: Publish the ready content status document
+      vars:
+        s2i_ci_status_dir: "{{ s2i_test_status_dir }}"
+        s2i_ci_content_status:
+          status: ready
+          registry: registry.test:5000
+          namespace: openstack
+          tag: test
+          stream: master
+          selected_images: "{{ s2i_ci_selected_images }}"
+          images: "{{ s2i_ci_target_references.values() | list }}"
+          custom_container_images: "{{ s2i_ci_custom_container_images }}"
+      ansible.builtin.include_tasks: >-
+        {{ s2i_test_repo_root }}/playbooks/container-ci/shared/publish-content-status.yaml
+
+    - name: Read the ready content status document
+      ansible.builtin.slurp:
+        src: "{{ s2i_test_status_dir }}/content.json"
+      register: s2i_test_ready_document
+
+    - name: Require the ready content status document
+      ansible.builtin.assert:
+        that:
+          - >-
+            {{ s2i_test_ready_document.content | b64decode | from_json ==
+               {
+                 'status': 'ready',
+                 'registry': 'registry.test:5000',
+                 'namespace': 'openstack',
+                 'tag': 'test',
+                 'stream': 'master',
+                 'selected_images': s2i_ci_selected_images,
+                 'images': s2i_ci_target_references.values() | list,
+                 'custom_container_images': s2i_ci_custom_container_images
+               } }}
+        fail_msg: The ready content status document is malformed
 
     - name: Read fake container storage after registry validation
       ansible.builtin.slurp:
