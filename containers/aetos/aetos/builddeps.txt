@@ -4,7 +4,6 @@ gcc-c++
 python3-devel
 libffi-devel
 openssl-devel
-libxml2
 libxml2-devel
 libxslt-devel
 # To build bcrypt from source
