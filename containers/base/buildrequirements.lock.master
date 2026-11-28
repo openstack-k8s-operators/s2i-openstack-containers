@@ -1,5 +1,5 @@
 flit-core==4.2.0
-packaging==26.3
+packaging==26.4
 setuptools-scm==10.3.4
 vcs-versioning==2.6.0
 wheel==0.48.0
